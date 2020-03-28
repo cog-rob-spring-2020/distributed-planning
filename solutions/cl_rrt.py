@@ -1,5 +1,5 @@
 """
-Closed-Loop RRT (CL-RRT) from (Desarju 2012)
+Closed-Loop RRT (CL-RRT) from (Desaraju 2012)
 """
 
 def tree_expansion():

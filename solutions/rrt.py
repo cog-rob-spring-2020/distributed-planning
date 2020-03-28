@@ -1,5 +1,5 @@
 """
-Cameron's RRT from 16.413
+Cameron's RRT from 16.413 F19
 """
 
 import functools

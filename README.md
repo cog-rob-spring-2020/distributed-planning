@@ -23,7 +23,7 @@ nose2
 
 ### Installing New Packages
 
-Let's keep `requirements.txt up to date with all required packages. With your venv activated:
+Let's keep `requirements.txt` up to date with all required packages. With your venv activated:
 
 ```sh
 pip install foo && pip freeze > requirements.txt

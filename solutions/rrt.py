@@ -101,18 +101,10 @@ def rrt(bounds, environment, start_pose, radius, end_region):
         [[o.centroid.x, o.centroid.y] for o in environment.obstacles]
     )
 
-    # find the nearest neighbor to a point
-    nearest_neighbor = lambda point: min(
-        V, key=functools.partial(distance, p2=point, min_distance=radius)
-    )
-
     def get_nearest_neighbor(point):
         pointsKDTree = spatial.KDTree([[p[0], p[1]] for p in V])
         distances, elements = pointsKDTree.query([point[0], point[1]])
         return V[elements]
-
-    # steer_distance is a set fraction of the distance across the board (using the average of the x and y axes)
-    # steer_distance = ((bounds[2] - bounds[0] + bounds[3] - bounds[1]) / 2.0) / 20.0
 
     steer_distance = 0.5
 
@@ -139,7 +131,6 @@ def rrt(bounds, environment, start_pose, radius, end_region):
         i += 1
 
         # steer towards the random point from the closest point to it to get a new point
-        # nearest_point = nearest_neighbor(random_point)
         nearest_point = get_nearest_neighbor(random_point)
         new_point = steer(nearest_point, random_point, steer_distance)
 

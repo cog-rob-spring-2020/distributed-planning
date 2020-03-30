@@ -9,7 +9,7 @@ class Agent():
         """
         self.id = id
         self.token_holder = False
-        self.check_estops = True  # TODO - figure out when this resets
+        self.check_estops = True
 
         # keeps track of other agents' current bids for PPI
         # (potential path improvement) at any given time:
@@ -34,7 +34,8 @@ class Agent():
         pub.subscribe(self.received_estop, "estop")
 
     """
-    Methods for moving around and running RRT (call Cam's CL-RRT code)
+    Methods for simulating motion using vehicle dynamics
+    and calling Cam's CL-RRT code.
     """
     # TODO
 
@@ -70,7 +71,7 @@ class Agent():
             if node == stop_node:
                 self.plan = self.plan[:i + 1]
                 break
-        
+
         self.check_estops = False
 
     def individual():
@@ -81,13 +82,24 @@ class Agent():
         # TODO
         pass
 
-    def check_emergency_stops():
+    def check_emergency_stops(best_new_plan, other_agent):
         """
         Helper for the individual component of Cooperative DMA-RRT
         as described in algorithm 7 from Desaraju/How 2012.
         """
-        # TODO
-        pass
+        other_agent_modified = False
+
+        if self.check_estops:
+            for estop_node in other_agent.plan.emergency_stops:
+                for stop_node in best_new_plan.emergency_stops:
+                    pass
+                    # TODO: find last safe stop_node in our plan if other agend stops at estop_node
+            # TODO: see pseudocode
+        else:
+            # TODO: prune best new plan to satisfy all constraints
+            self.check_estops = True
+
+        return best_new_plan, other_agent_modified
 
     def coop_individual():
         """

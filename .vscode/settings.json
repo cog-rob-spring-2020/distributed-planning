@@ -2,5 +2,9 @@
     "editor.detectIndentation": false,
     "editor.tabSize": 4,
     "python.pythonPath": ".venv/bin/python",
-    "editor.insertSpaces": true
+    "editor.insertSpaces": true,
+    "files.exclude": {
+        "**/.ipynb_checkpoints": true,
+        "**/.venv": true
+    }
 }

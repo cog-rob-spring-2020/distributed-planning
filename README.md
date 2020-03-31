@@ -52,5 +52,11 @@ PYTHONPATH="$PWD" nose2 --pretty-assert
 Let's keep `requirements.txt` up to date with all required packages. With your venv activated:
 
 ```sh
+# make sure you've installed everything first or the next step will blow away
+# packages you haven't installed
+pip install -r requirements.txt
+
+# actually install the new package (`foo` in this case) and then update
+# the requirements
 pip install foo && pip freeze > requirements.txt
 ```

@@ -14,6 +14,10 @@
 |-- utils/     - shared code
 ```
 
+### `utils/`
+
+The `Environment` class defines a 2D space with obstacles. It can be used to model a simple area with binary accessible and inaccessible regions. For example usage, spin up a Jupyter notebook (see below) and check out `solutions/rrt_example.ipynb`.
+
 ## Development
 
 * Python 3.8
@@ -27,12 +31,20 @@ If you're on Linux/Unix, here's a quick guide. If you're on Windows, see the Pyt
 2. `. .venv/bin/activate`
 3. `pip install -r requirements.txt`
 
+## Jupyter Notebook Usage
+
+```sh
+PYTHONPATH="$PWD" jupyter notebook
+```
+
+When it loads, make sure you're using the kernel from your venv.
+
 ### Testing
 
 With your venv activated:
 
 ```sh
-nose2 --pretty-assert
+PYTHONPATH="$PWD" nose2 --pretty-assert
 ```
 
 ### Installing New Packages

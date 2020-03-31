@@ -4,7 +4,7 @@ Closed-Loop RRT (CL-RRT) from (Kuwata 2009) and (Desaraju 2012)
 from scipy import spatial
 from rrt import get_random_free_point
 
-def get_nearest_neighbor(point):
+def get_nearest_neighbor(point, V):
     pointsKDTree = spatial.KDTree([[p[0], p[1]] for p in V])
     distances, elements = pointsKDTree.query([point[0], point[1]])
     return V[elements]
@@ -13,7 +13,7 @@ def tree_expansion(bounds, environment, radius, V, current_time, k):
     # select a random point from free space
     x_sample = get_random_free_point(bounds, environment, radius, V)
 
-    # find the nearest neighbor to a point
+    # find the nearest neighbor to the point
     n_near = lambda point: min(
         V, key=functools.partial(distance, p2=point, min_distance=radius)
     )
@@ -34,3 +34,5 @@ def CL_RRT(bounds, environment, start_position, end_position, radius=0.1, delta_
     E = []
     current_time = 0
     pass
+
+# MIT 16.30 for feedback control

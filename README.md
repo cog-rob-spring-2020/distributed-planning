@@ -31,6 +31,31 @@ If you're on Linux/Unix, here's a quick guide. If you're on Windows, see the Pyt
 2. `. .venv/bin/activate`
 3. `pip install -r requirements.txt`
 
+
+### API Breakdown
+
+**TODO(marcus):** remove this subsection for final release!
+
+To aid our devleopment, here is a breakdwon of the external-facing APIs of each component in the module and how they interact with each other.
+
+[rrtstar.py](/solutions/rrtstar.py): Implementation of RRT* planner.
+- `RRTstar.spin()` This will run the main planning loop for a fixed number of iterations (determined in the ctor of the RRTstar object). Can optionally terminate at first path found.
+- `RRTstar.spin_once()` This will run one iteration of the `spin` execution loop. Useful for external objects; the agent will have its own execution loop running on some rate, and will call this method to update the tree-expansion and planning algorithm. This allows the agent to inject new information about the environment (new obstacles, new goal position) into the planner before replanning.
+- `RRTstar.get_path()` External objects interfacing with `RRTstar` will call this to check for the current best path from `RRTstar.start` to `RRTstar.goal`. This can return `None` if no path is found.
+
+[agent.py](/solutions/agent.py): Structure for a vehicle agent which plans paths in an Environment.
+- `Agent.spin()` Should run the planner at a fixed rate (calling `RRTstar.spin_once()`) and optionally run the `Agent.individual()` or `Agent.coop_individual()` methods to update the internal state wrt other agents. The networked callbacks will modify each agent's internal state and this will be used to update the planner in this block, when the agent accesses these internal state variables.
+- `Agent.spin_once()` should run one iteration of the spin function; basically `spin()` should only call this on a timer. This allows us to slow things down in the wrapper code.
+- `Agent.broadcast_waypoints()` and `Agent.broadcast_bids()` will be called after planning to send updates on the network. The subscriber system on the client side will just update internal state variables for each agent.
+
+[plan.py](/solutions/plan.py): Main loop for larger experiments.
+- This one currently has structures to represent Path (and presumably other things). 
+- I think we should change this to be a sort of `main.py`, where the script for the full experiment is. It should instantiate the different agents, which in turn should instantiate their internal planners. Maybe it reads in some representation of vehicle dynamics from a yaml file (or maybe not for this pset).
+- It should have a `plan()` method that we call from the notebook to start the experiment
+- The `plan()` method should call each Agent's `spin()` in parallel (spin up one thread per agent).
+- There should be external callbacks for visualization or other tasks that happen on-demand or on a timer.
+
+
 ## Jupyter Notebook Usage
 
 ```sh

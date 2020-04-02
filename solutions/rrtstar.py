@@ -52,7 +52,7 @@ class RRTstar:
             if path is not None:
                 return path
             
-        return self.find_a_final_path()
+        return self.get_path()
 
     def spin_once(self, return_first_path=False):
         """ Perform one iteration of tree-expansion and path-planning. """
@@ -72,7 +72,7 @@ class RRTstar:
                     self.rewire(new_node, near_ids)
 
             if return_first_path and new_node:
-                return self.find_a_final_path()
+                return self.get_path()
 
         return None
 
@@ -182,7 +182,7 @@ class RRTstar:
                 node.cost = self.compute_new_cost(parent_node, node)
                 self.propagate_cost(node)
 
-    def find_a_final_path(self):
+    def get_path(self):
         """ Attempt to find a path to a goal point. Return None if can't. """
         last_id = self.search_best_goal_node()
         if last_id:
@@ -264,7 +264,7 @@ class RRTstar:
                 plot_line(ax, LineString([[node.x, node.y],
                                           [node.parent.x, node.parent.y]]))
 
-        path = self.find_a_final_path()
+        path = self.get_path()
         if path is not None:
             path_xy = [[node.x, node.y] for node in path]
             line = LineString(path_xy)

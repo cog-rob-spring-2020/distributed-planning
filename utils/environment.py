@@ -70,6 +70,13 @@ class Environment:
         mp = geom.MultiPoint(points)
         self.bounds = mp.bounds
 
+    def collision_free(self, x, y):
+        """ Check if a point is obstacle-free. """
+        for obstacle in self.obstacles:
+            if obstacle.contains(geom.Point(x,y)):
+                return False
+        return True
+
     def load_from_yaml_file(self, yaml_file):
         f = open(yaml_file)
         self.data = yaml.safe_load(f)

@@ -251,20 +251,30 @@ class RRTstar:
         return d, theta
 
     def plot_tree(self):
-        """ Plot the entire RRT tree including nodes and edges. """
+        """ Plot the entire RRT tree, final path, and start/goal nodes. """
         ax = plot_environment(self.env)
 
+        plot_poly(ax, Point(
+            (self.start.x, self.start.y)).buffer(0.3, resolution=3), "green")
+        plot_poly(ax, Point(
+            (self.goal.x, self.goal.y)).buffer(0.3, resolution=3), "red")
+
         for node in self.node_list:
-            # TODO(marcus): plot node circle here!
             if node.parent is not None:
                 plot_line(ax, LineString([[node.x, node.y],
                                           [node.parent.x, node.parent.y]]))
 
         path = self.find_a_final_path()
         if path is not None:
-            path_xy = []
-            for node in path:
-                path_xy.append([node.x, node.y])
+            path_xy = [[node.x, node.y] for node in path]
             line = LineString(path_xy)
             extended_line = line.buffer(0.3, resolution=3)
             plot_poly(ax, extended_line, "yellow", alpha=0.5)
+
+            ax.set_title(f"Number of nodes in tree: {len(self.node_list)} \n \
+                        Number of nodes in solution path: {len(path)} \
+                        \n Path length: {(len(path) - 1) * self.goal_dist}")
+
+        else:
+            ax.set_title(f"Number of nodes in tree: {len(self.node_list)}")
+            print("No path was found.")

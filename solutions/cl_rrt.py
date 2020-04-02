@@ -19,7 +19,17 @@ def get_nearest_neighbor(point, tree):
     return tree[elements]
 
 
-def tree_expansion(bounds, environment, obstaclesKDTree, radius, tree, current_time):
+def get_nearest_obstacles(point, obstacles):
+    """
+    Time saving trick to avoid checking faraway obstacles for collisions
+    """
+    p = [point[0], point[1]]
+    results = obstacles.query_ball_point(p, 25)
+    obstacles = [(environment.obstacles[r - 1]) for r in results]
+    return obstacles
+
+
+def tree_expansion(tree, bounds, environment, obstaclesKDTree, radius, current_time):
     # make a copy?
     new_tree = tree
 
@@ -47,6 +57,11 @@ def best_path(tree):
     return p_star
 
 
+def apply(agent, p_star):
+    # TODO: probably set something on the agent? maybe pass control inputs to the agent?
+    pass
+
+
 def CL_RRT(
     agent, bounds, environment, start_state, end_region, radius=0.1, delta_t=0.1
 ):
@@ -56,6 +71,7 @@ def CL_RRT(
     Params:
         delta_t float seconds
     """
+    # use the weights of the tree as cost estimates
     tree = nx.DiGraph()
     tree.add_node(start_state)
 
@@ -71,13 +87,13 @@ def CL_RRT(
         while elapsed_time <= delta_t:
             # can be slowed down with a time.sleep()
             loop_start = time.perf_counter()
-            E = tree_expansion(
-                bounds, environment, obstaclesKDTree, radius, V, tree, current_time
+            tree = tree_expansion(
+                tree, bounds, environment, obstaclesKDTree, radius, current_time
             )
             loop_end = time.perf_counter()
             elapsed_time += loop_end - loop_start
 
-        while len(E) > 0:
+        while len(tree.nodes) > 0:
             p_star = best_path(tree)
 
             if lazy_check(p_star):

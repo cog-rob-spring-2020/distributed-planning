@@ -1,26 +1,33 @@
 """
 Closed-Loop RRT (CL-RRT) from (Kuwata 2009) and (Desaraju 2012)
 """
+import networkx as nx
 from scipy import spatial
 from shapely.geometry import Point
 import time
-from rrt import get_random_free_point
+from rrt import get_random_free_point, distance
+
 
 def get_nearest_neighbor(point, tree):
-    pointsKDTree = spatial.KDTree([[p[0], p[1]] for p in tree])
+    """
+    Params:
+        point tuple (float, float)
+        tree networkx.DiGraph
+    """
+    pointsKDTree = spatial.KDTree([[p[0], p[1]] for p in tree.nodes])
     distances, elements = pointsKDTree.query([point[0], point[1]])
-    return V[elements]
+    return tree[elements]
 
-def tree_expansion(bounds, environment, radius, tree, current_time):
+
+def tree_expansion(bounds, environment, obstaclesKDTree, radius, tree, current_time):
+    # make a copy?
     new_tree = tree
 
     # select a random point from free space
-    x_sample = get_random_free_point(bounds, environment, radius, V)
+    x_sample = get_random_free_point(bounds, environment, radius)
 
     # find the nearest neighbor to the point
-    n_near = lambda point: min(
-        V, key=functools.partial(distance, p2=point, min_distance=radius)
-    )
+    n_near = get_nearest_neighbor(x_sample, V)
 
     k = 0
     last_state = x_hat(current_time + k)
@@ -30,22 +37,28 @@ def tree_expansion(bounds, environment, radius, tree, current_time):
 
     return new_tree
 
+
 def lazy_check():
     pass
+
 
 def best_path(tree):
     p_star = []
     return p_star
 
-def CL_RRT(agent, bounds, environment, start_state, end_region, radius=0.1, delta_t=0.1):
+
+def CL_RRT(
+    agent, bounds, environment, start_state, end_region, radius=0.1, delta_t=0.1
+):
     """
     Main execution loop of the CL-RRT algorithm
 
     Params:
         delta_t float seconds
     """
-    tree = [start_state]
-    E = []
+    tree = nx.DiGraph()
+    tree.add_node(start_state)
+
     current_time = 0
 
     obstaclesKDTree = spatial.KDTree(
@@ -54,24 +67,26 @@ def CL_RRT(agent, bounds, environment, start_state, end_region, radius=0.1, delt
 
     current_state = start_state
     while not end_region.contains(Point(current_state)):
-        new_state = current_state
-
         elapsed_time = 0
         while elapsed_time <= delta_t:
             # can be slowed down with a time.sleep()
             loop_start = time.perf_counter()
-            tree = tree_expansion(bounds, environment, radius, tree, current_time)
+            E = tree_expansion(
+                bounds, environment, obstaclesKDTree, radius, V, tree, current_time
+            )
             loop_end = time.perf_counter()
             elapsed_time += loop_end - loop_start
 
-        while len(tree) > 0:
+        while len(E) > 0:
             p_star = best_path(tree)
 
             if lazy_check(p_star):
-                apply(agent, p_star)
-                return
+                current_state = apply(agent, p_star)
+                tree.add_node(current_state)
+                break
             else:
                 # remove the infeasible path
-                tree = tree.pop(p_star)
+                # TODO: check format here - p_star should be a list of nodes
+                tree = tree.remove_nodes_from(p_star)
 
-    t += delta_t
+        t += delta_t

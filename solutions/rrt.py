@@ -14,7 +14,7 @@ import yaml
 from utils.environment import Environment, plot_environment, plot_line, plot_poly
 
 
-def get_random_free_point(bounds, environment, radius, V):
+def get_random_free_point(bounds, environment, radius):
     """
     Sample the free space and return a random point
 
@@ -22,7 +22,6 @@ def get_random_free_point(bounds, environment, radius, V):
         bounds tuple (minx int, miny int, maxx int, maxy int)
         environment Environment
         radius float
-        V list of tuples (x float, y float)
     Returns:
         tuple (x float, y float)
     """

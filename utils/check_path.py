@@ -6,7 +6,7 @@ from nose.tools import assert_equal, ok_, assert_almost_equal
 from shapely.geometry import Point, Polygon, LineString, box
 
 
-def check_path(path, bounds, environment, start, radius, goal_region):
+def check_path(path, bounds, environment, start, radius, goal_region, silent=False):
     """Checks that the path is valid (except for collisions)."""
 
     minx, miny, maxx, maxy = bounds
@@ -30,11 +30,12 @@ def check_path(path, bounds, environment, start, radius, goal_region):
     endx, endy = path[-1]
     ok_(goal_region.contains(Point((endx,endy))), msg="The end of the path should be in the goal region.")
 
-    try:
-        from IPython.display import display_html
-        display_html("""<div class="alert alert-success">
-        <strong>Path seems to be correct.</strong>
-        However, collisions are not checked. Make sure your path doesn't collide with any obstacles.
-        </div>""", raw=True)
-    except:
-        print("test ok!!")
+    if not silent:
+        try:
+            from IPython.display import display_html
+            display_html("""<div class="alert alert-success">
+            <strong>Path seems to be correct.</strong>
+            However, collisions are not checked. Make sure your path doesn't collide with any obstacles.
+            </div>""", raw=True)
+        except:
+            print("test ok!!")

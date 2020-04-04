@@ -5,11 +5,13 @@ import networkx as nx
 from scipy import spatial
 from shapely.geometry import Point
 import time
-from rrt import get_random_free_point, distance
+from solutions.rrt import get_random_free_point, distance
 
 
 def get_nearest_neighbor(point, tree):
     """
+    Get the closest existing point in the tree
+
     Params:
         point tuple (float, float)
         tree networkx.DiGraph
@@ -19,11 +21,12 @@ def get_nearest_neighbor(point, tree):
     return tree[elements]
 
 
-def get_nearest_obstacles(point, obstacles):
+def get_nearest_obstacles(point, obstacles, environment):
     """
-    Time saving trick to avoid checking faraway obstacles for collisions
+    Get the closest obstacles to a point
     """
     p = [point[0], point[1]]
+    # time saving trick to avoid checking faraway obstacles for collisions
     results = obstacles.query_ball_point(p, 25)
     obstacles = [(environment.obstacles[r - 1]) for r in results]
     return obstacles

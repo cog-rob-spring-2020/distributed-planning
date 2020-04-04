@@ -1,15 +1,19 @@
-from solutions.rrt import distance
+from shapely.geometry import Polygon
+from solutions.rrt import rrt
+from utils.check_path import check_path
+from utils.environment import Environment
 
 
 def test_generated_paths():
-    # create a loop with like 10 trials
-    # use a known feasible environment
-    # run RRT
-    # run check_path to see if it worked
+    # set up a known feasible environment
+    environment = Environment(yaml_file="utils/simple.yaml")
 
-    epsilon = 0.001
-    test_cases = [{"p1": (3, 3), "p2": (4, 4), "expected": 1.414,}]
+    radius = 0.3
+    bounds = (-2, -3, 12, 8)
+    start = (0, 0)
+    goal_region = Polygon([(10, 5), (10, 6), (11, 6), (11, 5)])
 
-    for tc in test_cases:
-        found = distance(tc["p1"], tc["p2"])
-        assert abs(found - tc["expected"]) <= epsilon
+    for i in range(10):
+        path = rrt(bounds, environment, start, radius, goal_region)
+        check_path(path, bounds, environment, start, radius, goal_region, True)
+        # FYI check_path doesn't check for collisions, just that the path is valid

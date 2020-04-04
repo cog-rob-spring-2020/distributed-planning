@@ -24,7 +24,6 @@ def plot_environment(env, bounds=None, figsize=None):
         if height > 5:
             width, height = (maxx-minx)*max_height/(maxy-miny), max_height
         figsize = (width, height)
-    print(figsize)
     f = plt.figure(figsize=figsize)
     ax = f.add_subplot(111)
     for i, obs in enumerate(env.obstacles):

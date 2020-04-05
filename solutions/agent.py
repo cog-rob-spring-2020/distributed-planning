@@ -1,24 +1,24 @@
 import time
-from pubsub import pub
 from rrtstar import Node, NodeStamped, RRTstar
+from solutions.antenna import Antenna, TOPIC_BIDS, TOPIC_WAYPOINTS
+
 
 class Agent():
-    def __init__(self, id, other_ids, x_start, y_start, x_goal, y_goal, environment, bounds, goal_dist, tolerance):
-        """
-        id - unique integer id
-        other_ids - list of other agents' integer ids
-        """
-        self.id = id
+    def __init__(self, mode, x_start, y_start, x_goal, y_goal, environment, bounds, goal_dist, tolerance):
+        self.antenna = Antenna()
+        self.antenna.find_peers()
+
         self.token_holder = False
-        self.check_estops = True
+
+        self.check_estops = (mode == 'cooperative')
 
         # keeps track of other agents' current bids for PPI
         # (potential path improvement) at any given time:
-        self.bids = {id:None for id in other_ids}
+        self.bids = {id:None for id in self.antenna.peers}
 
         # keeps track of other agents' plans so that we can
         # add the other agents as obstacles when replanning
-        self.plans = {id:None for id in other_ids}
+        self.plans = {id:None for id in self.antenna.peers}
 
         # initial state and environment
         self.tolerance = tolerance
@@ -35,10 +35,9 @@ class Agent():
         self.plan = self.rrt.get_path()
 
         # register as listener for different kinds of messages
-        pub.subscribe(self.received_bid, "bids")
-        pub.subscribe(self.received_waypoints, "waypoints")
-        pub.subscribe(self.received_estop, "estop")
-
+        self.antenna.on_message("bids", self.received_bid)
+        self.antenna.on_message("waypoints", self.received_waypoints)
+        self.antenna.on_message("estop", self.received_estop)
 
     """
     Methods for listening and broadcasting to various topics.
@@ -47,23 +46,26 @@ class Agent():
     and Cooperative DMA-RRT from Desaraju/How 2012, as described in algorithms 5 and 8 respectively.
     """
     def broadcast_bid(self, bid):
-        pub.sendMessage("bids", self.id, bid)
+        self.antenna.broadcast(TOPIC_BIDS, bid)
 
-    def received_bid(self, bidder_id, bid):
+    def received_bid(self, msg):
+        bidder_id, bid = msg
         self.bids[bidder_id] = bid
 
     def broadcast_waypoints(self, winner_id):
-        pub.sendMessage("waypoints", self.id, self.plan, winner_id)
+        self.antenna.broadcast(TOPIC_WAYPOINTS, winner_id)
 
-    def received_waypoints(self, other_id, other_plan, winner_id):
+    def received_waypoints(self, msg):
+        other_id, other_plan, winner_id = msg
         self.plans[other_id] = other_plan
         if winner_id == self.id:
             self.token_holder = True
 
     def broadcast_estop(self, stop_node):
-        pub.sendMessage("estop", stop_node)
+        self.antenna.broadcast(TOPIC_ESTOPS, stop_node)
 
-    def received_estop(self, stop_node):
+    def received_estop(self, msg):
+        stop_node = msg
         # terminate plan at specified node
         for i, node in enumerate(self.plan):
             if node == stop_node:

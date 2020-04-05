@@ -6,6 +6,7 @@
 
 import numpy as np
 import random
+import copy
 from shapely.geometry import Point, Polygon, LineString
 
 from utils.environment import Environment, plot_environment, plot_line, plot_poly
@@ -28,9 +29,44 @@ class Node:
         return False
 
 
+class NodeStamped(Node):
+    def __init__(self, x, y):
+        super.__init__(x, y)
+        self.stamp = None
+    
+    def __init__(self, node):
+        self.x = copy.deepcopy(node.x)
+        self.y = copy.deepcopy(node.y)
+        self.path_x = copy.deepcopy(node.path_x)
+        self.path_x = copy.deepcopy(node.path_y)
+        self.path_y = copy.deepcopy(node.path_y)
+        self.parent = copy.deepcopy(node.parent)
+        self.cost = copy.deepcopy(node.cost)
+        
+        if isinstance(node, self.__class__):
+            self.stamp = copy.deepcopy(node.stamp)
+        else:
+            self.stamp = None
+    
+    def __str__(self):
+        return "node xy: " + str(self.x) + ", " + str(self.y) + \
+               " | ts: " + str(self.stamp)
+
+
+class Path():
+    def __init__(self, nodes):
+        self.nodes = nodes
+        self.emergency_stops = set()
+        self.ts_dict = {node.stamp : node for node in self.nodes}
+        self.cost = self.nodes[-1].cost
+
+    def mark_safe(self, node):
+        self.emergency_stops.add(node)
+
+
 class RRTstar:
-    def __init__(self, start, goal, env, goal_dist, goal_sample_rate=0.7,
-                 path_resolution=0.5, connect_circle_dist=20.0, max_iter=1000):
+    def __init__(self, start, goal, env, goal_dist=0.5, goal_sample_rate=0.7,
+                 path_resolution=0.1, connect_circle_dist=20.0, max_iter=1000):
         self.start = Node(start[0], start[1])
         self.goal = Node(goal[0], goal[1])
         self.env = env
@@ -40,6 +76,7 @@ class RRTstar:
         self.connect_circle_dist = connect_circle_dist
         self.max_iter = max_iter
         self.node_list = []
+        self.curr_iter = 0
 
     def spin(self, return_first_path=False):
         """ Expand the tree and plan through the environment. """
@@ -54,8 +91,9 @@ class RRTstar:
             
         return self.get_path()
 
-    def spin_once(self, return_first_path=False):
+    def spin_once(self, return_first_path):
         """ Perform one iteration of tree-expansion and path-planning. """
+        self.curr_iter += 1
         rand_node = self.get_rand_node()
 
         nearest_id = self.get_nearest_node_id(rand_node)
@@ -186,22 +224,42 @@ class RRTstar:
         """ Attempt to find a path to a goal point. Return None if can't. """
         last_id = self.search_best_goal_node()
         if last_id:
-            print("RRTstar >> found a path!")
+            print("RRTstar >> found a path! on iter: ", self.curr_iter)
             return self.generate_final_path(last_id)
         
         return None
 
     def generate_final_path(self, id):
         """ Prune the final path once the goal has been found. """
-        path = [self.goal]
+        self.goal.cost = self.compute_new_cost(self.node_list[id], self.goal)
         node = self.node_list[id]
+        path_nodes = [NodeStamped(self.goal)]
 
         while node.parent is not None:
-            path.append(node)
+            node_stamped = NodeStamped(node)
+            path_nodes.append(node_stamped)
             node = node.parent
         
-        path.append(node)
+        path_nodes.append(NodeStamped(node))
+        path_nodes.reverse()
+        path_nodes = self.allocate_time(path_nodes)
+
+        path = Path(path_nodes)
         return path
+
+    def allocate_time(self, nodes):
+        """ Attribute timestamps to each node in the nodes list. """
+        
+        def naive_alloc(nodes):
+            """ Simply increment each stamp by one integer. """
+            count = 0
+            for node in nodes:
+                node.stamp = count
+                count += 1
+            
+            return nodes
+        
+        return naive_alloc(nodes)
 
     def dist_to_goal(self, node):
         """ Compute the Euclidean distance to the goal node. """
@@ -266,14 +324,14 @@ class RRTstar:
 
         path = self.get_path()
         if path is not None:
-            path_xy = [[node.x, node.y] for node in path]
+            path_xy = [[node.x, node.y] for node in path.nodes]
             line = LineString(path_xy)
             extended_line = line.buffer(0.3, resolution=3)
             plot_poly(ax, extended_line, "yellow", alpha=0.5)
 
             ax.set_title(f"Number of nodes in tree: {len(self.node_list)} \n \
-                        Number of nodes in solution path: {len(path)} \
-                        \n Path length: {(len(path) - 1) * self.goal_dist}")
+                        Number of nodes in solution path: {len(path.nodes)} \
+                        \n Path length: {path.cost}")
 
         else:
             ax.set_title(f"Number of nodes in tree: {len(self.node_list)}")

@@ -1,15 +1,21 @@
 import time
-from rrtstar import Node, NodeStamped, RRTstar
-from solutions.antenna import Antenna, TOPIC_BIDS, TOPIC_WAYPOINTS
-
+from solutions.rrtstar import Node, RRTstar
+from shapely.geometry import Point
+from solutions.antenna import Antenna, TOPIC_BIDS, TOPIC_WAYPOINTS, TOPIC_ESTOPS
 
 class Agent():
-    def __init__(self, mode, x_start, y_start, x_goal, y_goal, environment, bounds, goal_dist, tolerance):
+    def __init__(self, mode, x_start, y_start, goal_region, environment, bounds, goal_dist):
+        """
+        mode - "normal" or "cooperative" indicates whether to use DMA-RRT or Cooperative DMA-RRT
+        """
         self.antenna = Antenna()
         self.antenna.find_peers()
 
-        self.token_holder = False
+        self.mode = mode
+        if mode != "cooperative" and mode != "normal":
+            raise ValueError("mode must be 'normal' or 'cooperative'")
 
+        self.token_holder = False
         self.check_estops = (mode == 'cooperative')
 
         # keeps track of other agents' current bids for PPI
@@ -21,15 +27,14 @@ class Agent():
         self.plans = {id:None for id in self.antenna.peers}
 
         # initial state and environment
-        self.tolerance = tolerance
         self.goal_dist = goal_dist
         self.bounds = bounds
         self.environment = environment
 
-        self.pose = (x_start, y_start)
-        self.goal = (x_goal, y_goal)
+        self.pose = Point(x_start, y_start)
+        self.goal = goal_region
 
-        self.rrt = RRTstar(self.pose, self.goal, self.environment, self.goal_dist)
+        self.rrt = RRTstar((x_start, y_start), self.goal, self.environment, self.goal_dist)
 
         # a list of NodeStamped waypoints, starting with current pose
         self.plan = self.rrt.get_path()
@@ -46,63 +51,61 @@ class Agent():
     and Cooperative DMA-RRT from Desaraju/How 2012, as described in algorithms 5 and 8 respectively.
     """
     def broadcast_bid(self, bid):
-        self.antenna.broadcast(TOPIC_BIDS, bid)
+        msg = {"topic":TOPIC_BIDS, "bid":bid}
 
-    def received_bid(self, msg):
-        bidder_id, bid = msg
-        self.bids[bidder_id] = bid
+        self.antenna.broadcast(TOPIC_BIDS, msg)
+
+    def received_bid(self, sender_id, msg):
+        bidder = sender_id
+        self.bids[bidder] = msg["bid"]
 
     def broadcast_waypoints(self, winner_id):
-        self.antenna.broadcast(TOPIC_WAYPOINTS, winner_id)
+        msg = {"topic":TOPIC_WAYPOINTS, "plan":self.plan, "winner_id":winner_id}
 
-    def received_waypoints(self, msg):
-        other_id, other_plan, winner_id = msg
-        self.plans[other_id] = other_plan
+        self.antenna.broadcast(TOPIC_WAYPOINTS, msg)
+
+    def received_waypoints(self, sender_id, msg):
+        other_plan = msg["plan"]
+        winner_id = msg["winner_id"]
+
+        self.plans[sender_id] = other_plan
         if winner_id == self.id:
             self.token_holder = True
 
-    def broadcast_estop(self, stop_node):
-        self.antenna.broadcast(TOPIC_ESTOPS, stop_node)
+    def broadcast_estop(self, stop_id, stop_node):
+        msg = {"topic":TOPIC_ESTOPS, "stop_id":stop_id, "stop_node":stop_node}
 
-    def received_estop(self, msg):
-        stop_node = msg
-        # terminate plan at specified node
-        for i, node in enumerate(self.plan):
-            if node == stop_node:
-                self.plan = self.plan[:i + 1]
-                break
+        self.antenna.broadcast(TOPIC_ESTOPS, msg)
 
-        self.check_estops = False
+    def received_estop(self, sender_id, msg):
+        stop_id = msg["stop_id"]
+        stop_node = msg["stop_node"]
 
-    def refresh_constraints():
-        self.environment = Environment(bounds = self.bounds)
-        obstacles = []
-        for other_id, other_plan in self.plans.items():
-            # refresh agent's plan if they have already moved to their next node
-            if time.time() > other_plan[0].timestamp:
-                self.plans[other_id] = other_plan[1:]
+        if stop_id == self.antenna.uuid:
+            # terminate plan at specified node
+            for i, node in enumerate(self.plan):
+                if node == stop_node:
+                    self.plan = self.plan[:i + 1]
+                    break
 
-            # TODO add obstacle to obstacles representing agent at first node in its updated plan
-            # obstacles.append(agent at self.plans[other_id][0])
-
-        self.environment.add_obstacles(obstacles)
+            self.check_estops = False
 
     def individual(self):
         """
         Individual component of DMA-RRT as described in algorithm 4
         from Desaraju/How 2012.
         """
-        # new_plan = CL_RRT(bounds, self.environment, self.pose, self.goal, radius=0.1, delta_t=0.1)
+        # refresh environment to reflect agents' current positions
+        self.rrt.update_agent_plans(self.plans)
+        self.rrt.update_pose(self.antenna.uuid, self.pose)
 
-        # refresh environment to reflect other agents' current positions
-        self.refresh_constraints()
-        self.rrt = RRTstar(self.pose, self.goal, self.environment, self.goal_dist)
+        # grow the tree to find best path given current environment
         new_plan = self.rrt.get_path()
 
         if self.token_holder:
             self.plan = new_plan
-            winner = max(self.bids, key = lambda x: self.bids[x])
-            self.broadcast_waypoints(winner)
+            winner_id = max(self.bids, key = lambda x: self.bids[x])
+            self.broadcast_waypoints(winner_id)
             self.token_holder = False
         else:
             bid = self.plan.cost() - new_plan.cost()
@@ -114,15 +117,40 @@ class Agent():
         as described in algorithm 7 from Desaraju/How 2012.
         """
         other_agent_modified = False
+        other_plan = other_agent.plan
 
         if self.check_estops:
-            for estop_node in other_agent.plan.emergency_stops:
-                for stop_node in best_new_plan.emergency_stops:
-                    pass
-                    # TODO: find last safe stop_node in our plan if other agend stops at estop_node
-            # TODO: see pseudocode
+            opt_other_stop = None
+            opt_stop = None
+            opt_global_cost = None
+
+            for other_i in range(0, len(other_plan), 10):
+                for i in range(0, len(best_new_plan), 10):
+                    other_stop_node = other_plan[other_i]
+                    stop_node = best_new_plan[i]
+
+                    if self.rrt.plans_conflict(other_plan[:other_i + 1], best_new_plan[:stop_node + 1]):
+                        # only want to consider this combination of stops if it would avoid a conflict
+                        continue
+
+                    cost = other_stop_node.cost + stop_node.cost
+                    if opt_global_cost is None or cost < opt_global_cost:
+                        opt_other_stop = other_stop_node
+                        opt_stop = stop_node
+                        opt_global_cost = cost
+
+            if opt_other_stop != other_plan[-1]:
+                self.broadcast_estop(other_agent.antenna.uuid, opt_other_stop)
+                other_agent_modified = True
+            if opt_stop != best_new_plan[-1]:
+                for i, node in enumerate(best_new_plan):
+                    if node == stop_node:
+                        best_new_plan = best_new_plan[:i + 1]
+                        break
         else:
-            # TODO: prune best new plan to satisfy all constraints
+            # prune our plan to avoid the conflict (don't modify other agent's plan)
+            best_new_plan = rrt.prune_to_avoid_conflict(best_new_plan, other_plan)
+
             self.check_estops = True
 
         return best_new_plan, other_agent_modified
@@ -132,47 +160,58 @@ class Agent():
         Individual component of Cooperative DMA-RRT as described
         in algorithm 6 from Desaraju/How 2012.
         """
-        # new_plan = CL_RRT(bounds, environment, self.current_position, end_position, radius=0.1, delta_t=0.1)
-
-        # refresh environment to reflect other agents' current positions
-        self.refresh_constraints()
-        self.rrt = RRTstar(self.pose, self.goal, self.environment, self.goal_dist)
+        # grow tree while ignoring other agents' paths
+        self.rrt.update_agent_plans(dict())
+        self.rrt.update_pose(self.antenna.uuid, self.pose)
         new_plan = self.rrt.get_path()
 
         if self.token_holder:
-            #check for first conflict (j)
-                #check for second conflict (j')
-            #ID emergency stop nodes
+            conflicting_agents = RRTstar.get_conflicts(self.antenna.uuid)
+            j = None
+            if conflicting_agents:
+                j = conflicting_agents[0]
+                new_plan, modified_j = check_emergency_stops(new_plan, j)
+
+            if len(conflicting_agents > 1):
+                for j_prime in conflicting_agents[1:]:
+                    if self.rrt.plans_conflict(new_plan, j_prime.plan):
+                        # prune our new_plan to avoid the conflict
+                        new_plan = rrt.prune_to_avoid_conflict(new_plan, j_prime.plan)
+
             self.plan = new_plan
-            #if modified angent js plan, j is winner, else:
-            winner = max(self.bids, key = lambda x: self.bids[x])
+
+            if j is not None and modified_j:
+                winner = j.antenna.uuid
+            else:
+                winner = max(self.bids, key = lambda x: self.bids[x])
+
             self.broadcast_waypoints(winner)
             self.token_holder = False
         else:
             bid = self.plan.cost() - new_plan.cost()
             self.broadcast_bid(bid)
 
-    def spin(self, rate, coop = False):
+    def at_goal(self):
+        return self.goal.contains(self.pose)
+
+    def spin(self, rate):
         """
         Runs the agent's individual component on a timer until it is sufficiently close to the goal.
 
         rate - rate at which the individual algorithm is run, in Hz
-        coop - indicates whether to run the Cooperative DMA-RRt extension
         """
-        x, y = self.pose
-        x_goal, y_goal = self.goal
-
         # go until agent has reached its goal state
-        while ((x - x_goal)**2 + (y - y_goal)**2) ** 1/2 > self.tolerance:
+        while not self.at_goal():
             # move agent if we have reached the next node
+            # TODO fix the use of time here, or use steer instead
             if time.time() > self.plan[0].timestamp:
                 self.pose = plan[0]
                 self.plan = plan[1:]
 
             # run one iteration of the individual method for DMA-RRT
-            if coop:
+            if self.mode == "cooperative":
                 self.coop_individual()
-            else:
+            elif self.mode == "normal":
                 self.individual()
 
             time.sleep(1 / rate)

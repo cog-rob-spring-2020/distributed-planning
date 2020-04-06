@@ -111,13 +111,12 @@ class Agent():
             bid = self.plan.cost() - new_plan.cost()
             self.broadcast_bid(bid)
 
-    def check_emergency_stops(self, best_new_plan, other_agent):
+    def check_emergency_stops(self, best_new_plan, other_agent, other_plan):
         """
         Helper for the individual component of Cooperative DMA-RRT
         as described in algorithm 7 from Desaraju/How 2012.
         """
         other_agent_modified = False
-        other_plan = other_agent.plan
 
         if self.check_estops:
             opt_other_stop = None
@@ -140,7 +139,7 @@ class Agent():
                         opt_global_cost = cost
 
             if opt_other_stop != other_plan[-1]:
-                self.broadcast_estop(other_agent.antenna.uuid, opt_other_stop)
+                self.broadcast_estop(other_agent, opt_other_stop)
                 other_agent_modified = True
             if opt_stop != best_new_plan[-1]:
                 for i, node in enumerate(best_new_plan):
@@ -162,26 +161,29 @@ class Agent():
         """
         # grow tree while ignoring other agents' paths
         self.rrt.update_agent_plans(dict())
-        self.rrt.update_pose(self.antenna.uuid, self.pose)
+        self.rrt.update_pose(self.pose)
         new_plan = self.rrt.get_path()
 
         if self.token_holder:
-            conflicting_agents = RRTstar.get_conflicts(self.antenna.uuid)
-            j = None
-            if conflicting_agents:
-                j = conflicting_agents[0]
-                new_plan, modified_j = check_emergency_stops(new_plan, j)
+            conflicting_plans = RRTstar.get_conflicts(self.plan)
+            conflicting_ids = list(conflicting_plans.keys())
 
-            if len(conflicting_agents > 1):
-                for j_prime in conflicting_agents[1:]:
-                    if self.rrt.plans_conflict(new_plan, j_prime.plan):
+            j = None
+            if conflicting_ids:
+                j = conflicting_ids[0]
+                new_plan, modified_j = check_emergency_stops(new_plan, j, conflicting_plans[j])
+
+            if len(conflicting_ids > 1):
+                for j_prime in conflicting_ids[1:]:
+                    j_prime_plan = conflicting_plans[j_prime]
+                    if self.rrt.plans_conflict(new_plan, j_prime_plan):
                         # prune our new_plan to avoid the conflict
-                        new_plan = rrt.prune_to_avoid_conflict(new_plan, j_prime.plan)
+                        new_plan = rrt.prune_to_avoid_conflict(new_plan, j_prime_plan)
 
             self.plan = new_plan
 
             if j is not None and modified_j:
-                winner = j.antenna.uuid
+                winner = j
             else:
                 winner = max(self.bids, key = lambda x: self.bids[x])
 

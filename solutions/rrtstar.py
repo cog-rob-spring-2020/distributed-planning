@@ -54,14 +54,58 @@ class NodeStamped(Node):
 
 
 class Path():
-    def __init__(self, nodes):
-        self.nodes = nodes
+    def __init__(self):
+        """ Default ctor sets cost of path to inf.
+            
+            This represents "no path", NOT an "empty path". Use to compare against
+            real paths that have finite cost.
+        """
+        self.nodes = tuple()
+        self.start_pose = tuple()
+        self.goal_pose = tuple()
         self.emergency_stops = set()
-        self.ts_dict = {node.stamp : node for node in self.nodes}
+        self.ts_dict = {}
+        self.cost = np.inf
+    
+    def __init__(self, nodes, start_pose, goal_pose):
+        """ A representation of a path through a 2D map parametrized by time.
+
+            This object should not be modified after initialization, except to add 
+            emergency stops. For subpaths, create a new path object. This is the
+            reason all fields except emergency_stops are immutable.
+
+            Args:
+                nodes: a list of NodeStamped objects representing the path.
+                start_pose: a 2-tuple representing the x-y position of the start.
+                goal_pose: a 2-tuple representing the x-y position of the goal.
+        """
+        self.nodes = tuple(nodes)
+        self.start_pose = start_pose
+        self.goal_pose = goal_pose
         self.cost = self.nodes[-1].cost
+        
+        # There is no frozendict! Do not modify this!
+        self.ts_dict = {node.stamp : node for node in self.nodes}
+
+        self.emergency_stops = set()
+
+        self.is_complete = False  # True if this Path goes from start to end.
+        if self.nodes[0].x == self.start_pose[0] and \
+                self.nodes[0].y == self.start_pose[1] and \
+                self.nodes[-1].x == self.goal_pose[0] and \
+                self.nodes[-1].y == self.goal_pose[1]:
+            self.is_complete = True
 
     def mark_safe(self, node):
-        self.emergency_stops.add(node)
+        """ Add an emergency node.
+
+            Args:
+                node: A NodeStamped object that is present in the Path.
+        """
+        if node in self.nodes:
+            self.emergency_stops.add(node)
+        else:
+            raise Exception("Path Error: Cannot add e-stop that isn't in path!")
 
 
 class RRTstar:
@@ -113,6 +157,13 @@ class RRTstar:
                 return self.get_path()
 
         return None
+
+    def update_agents_dict(self, agents_dict):
+        """
+        """
+        # allocate more time to collision nodes w/ other agents so that 
+        #   there isn't a collision.
+        raise NotImplementedError
 
     def steer(self, from_node, to_node):
         """ Drive the growth of the tree towards the goal point. """
@@ -244,7 +295,7 @@ class RRTstar:
         path_nodes.reverse()
         path_nodes = self.allocate_time(path_nodes)
 
-        path = Path(path_nodes)
+        path = Path(path_nodes, self.start, self.goal)
         return path
 
     def allocate_time(self, nodes):
@@ -326,7 +377,7 @@ class RRTstar:
         if path is not None:
             path_xy = [[node.x, node.y] for node in path.nodes]
             line = LineString(path_xy)
-            extended_line = line.buffer(0.3, resolution=3)
+            extended_line = line.buffer(0.2, resolution=3)
             plot_poly(ax, extended_line, "yellow", alpha=0.5)
 
             ax.set_title(f"Number of nodes in tree: {len(self.node_list)} \n \

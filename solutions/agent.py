@@ -11,12 +11,12 @@ class Agent():
         self.antenna = Antenna()
         self.antenna.find_peers()
 
-        self.mode = mode
-        if mode != "cooperative" and mode != "normal":
-            raise ValueError("mode must be 'normal' or 'cooperative'")
+        # self.mode = mode
+        # if mode != "cooperative" and mode != "normal":
+        #     raise ValueError("mode must be 'normal' or 'cooperative'")
 
         self.token_holder = False
-        self.check_estops = (mode == 'cooperative')
+        # self.check_estops = (mode == 'cooperative')
 
         # keeps track of other agents' current bids for PPI
         # (potential path improvement) at any given time:
@@ -42,7 +42,7 @@ class Agent():
         # register as listener for different kinds of messages
         self.antenna.on_message("bids", self.received_bid)
         self.antenna.on_message("waypoints", self.received_waypoints)
-        self.antenna.on_message("estop", self.received_estop)
+        # self.antenna.on_message("estop", self.received_estop)
 
     """
     Methods for listening and broadcasting to various topics.
@@ -72,23 +72,23 @@ class Agent():
         if winner_id == self.id:
             self.token_holder = True
 
-    def broadcast_estop(self, stop_id, stop_node):
-        msg = {"topic":TOPIC_ESTOPS, "stop_id":stop_id, "stop_node":stop_node}
+    # def broadcast_estop(self, stop_id, stop_node):
+    #     msg = {"topic":TOPIC_ESTOPS, "stop_id":stop_id, "stop_node":stop_node}
 
-        self.antenna.broadcast(TOPIC_ESTOPS, msg)
+    #     self.antenna.broadcast(TOPIC_ESTOPS, msg)
 
-    def received_estop(self, sender_id, msg):
-        stop_id = msg["stop_id"]
-        stop_node = msg["stop_node"]
+    # def received_estop(self, sender_id, msg):
+    #     stop_id = msg["stop_id"]
+    #     stop_node = msg["stop_node"]
 
-        if stop_id == self.antenna.uuid:
-            # terminate plan at specified node
-            for i, node in enumerate(self.plan):
-                if node == stop_node:
-                    self.plan = self.plan[:i + 1]
-                    break
+    #     if stop_id == self.antenna.uuid:
+    #         # terminate plan at specified node
+    #         for i, node in enumerate(self.plan):
+    #             if node == stop_node:
+    #                 self.plan = self.plan[:i + 1]
+    #                 break
 
-            self.check_estops = False
+    #         self.check_estops = False
 
     def individual(self):
         """
@@ -97,7 +97,7 @@ class Agent():
         """
         # refresh environment to reflect agents' current positions
         self.rrt.update_agent_plans(self.plans)
-        self.rrt.update_pose(self.antenna.uuid, self.pose)
+        self.rrt.update_pose(self.pose)
 
         # grow the tree to find best path given current environment
         new_plan = self.rrt.get_path()
@@ -108,90 +108,90 @@ class Agent():
             self.broadcast_waypoints(winner_id)
             self.token_holder = False
         else:
-            bid = self.plan.cost() - new_plan.cost()
+            bid = self.plan.cost - new_plan.cost
             self.broadcast_bid(bid)
 
-    def check_emergency_stops(self, best_new_plan, other_agent, other_plan):
-        """
-        Helper for the individual component of Cooperative DMA-RRT
-        as described in algorithm 7 from Desaraju/How 2012.
-        """
-        other_agent_modified = False
+    # def check_emergency_stops(self, best_new_plan, other_agent, other_plan):
+    #     """
+    #     Helper for the individual component of Cooperative DMA-RRT
+    #     as described in algorithm 7 from Desaraju/How 2012.
+    #     """
+    #     other_agent_modified = False
 
-        if self.check_estops:
-            opt_other_stop = None
-            opt_stop = None
-            opt_global_cost = None
+    #     if self.check_estops:
+    #         opt_other_stop = None
+    #         opt_stop = None
+    #         opt_global_cost = None
 
-            for other_i in range(0, len(other_plan), 10):
-                for i in range(0, len(best_new_plan), 10):
-                    other_stop_node = other_plan[other_i]
-                    stop_node = best_new_plan[i]
+    #         for other_i in range(0, len(other_plan), 10):
+    #             for i in range(0, len(best_new_plan), 10):
+    #                 other_stop_node = other_plan[other_i]
+    #                 stop_node = best_new_plan[i]
 
-                    if self.rrt.plans_conflict(other_plan[:other_i + 1], best_new_plan[:stop_node + 1]):
-                        # only want to consider this combination of stops if it would avoid a conflict
-                        continue
+    #                 if self.rrt.plans_conflict(other_plan[:other_i + 1], best_new_plan[:stop_node + 1]):
+    #                     # only want to consider this combination of stops if it would avoid a conflict
+    #                     continue
 
-                    cost = other_stop_node.cost + stop_node.cost
-                    if opt_global_cost is None or cost < opt_global_cost:
-                        opt_other_stop = other_stop_node
-                        opt_stop = stop_node
-                        opt_global_cost = cost
+    #                 cost = other_stop_node.cost + stop_node.cost
+    #                 if opt_global_cost is None or cost < opt_global_cost:
+    #                     opt_other_stop = other_stop_node
+    #                     opt_stop = stop_node
+    #                     opt_global_cost = cost
 
-            if opt_other_stop != other_plan[-1]:
-                self.broadcast_estop(other_agent, opt_other_stop)
-                other_agent_modified = True
-            if opt_stop != best_new_plan[-1]:
-                for i, node in enumerate(best_new_plan):
-                    if node == stop_node:
-                        best_new_plan = best_new_plan[:i + 1]
-                        break
-        else:
-            # prune our plan to avoid the conflict (don't modify other agent's plan)
-            best_new_plan = rrt.prune_to_avoid_conflict(best_new_plan, other_plan)
+    #         if opt_other_stop != other_plan[-1]:
+    #             self.broadcast_estop(other_agent, opt_other_stop)
+    #             other_agent_modified = True
+    #         if opt_stop != best_new_plan[-1]:
+    #             for i, node in enumerate(best_new_plan):
+    #                 if node == stop_node:
+    #                     best_new_plan = best_new_plan[:i + 1]
+    #                     break
+    #     else:
+    #         # prune our plan to avoid the conflict (don't modify other agent's plan)
+    #         best_new_plan = rrt.prune_to_avoid_conflict(best_new_plan, other_plan)
 
-            self.check_estops = True
+    #         self.check_estops = True
 
-        return best_new_plan, other_agent_modified
+    #     return best_new_plan, other_agent_modified
 
-    def coop_individual(self):
-        """
-        Individual component of Cooperative DMA-RRT as described
-        in algorithm 6 from Desaraju/How 2012.
-        """
-        # grow tree while ignoring other agents' paths
-        self.rrt.update_agent_plans(dict())
-        self.rrt.update_pose(self.pose)
-        new_plan = self.rrt.get_path()
+    # def coop_individual(self):
+    #     """
+    #     Individual component of Cooperative DMA-RRT as described
+    #     in algorithm 6 from Desaraju/How 2012.
+    #     """
+    #     # grow tree while ignoring other agents' paths
+    #     self.rrt.update_agent_plans(dict())
+    #     self.rrt.update_pose(self.pose)
+    #     new_plan = self.rrt.get_path()
 
-        if self.token_holder:
-            conflicting_plans = RRTstar.get_conflicts(self.plan)
-            conflicting_ids = list(conflicting_plans.keys())
+    #     if self.token_holder:
+    #         conflicting_plans = RRTstar.get_conflicts(self.plan)
+    #         conflicting_ids = list(conflicting_plans.keys())
 
-            j = None
-            if conflicting_ids:
-                j = conflicting_ids[0]
-                new_plan, modified_j = check_emergency_stops(new_plan, j, conflicting_plans[j])
+    #         j = None
+    #         if conflicting_ids:
+    #             j = conflicting_ids[0]
+    #             new_plan, modified_j = check_emergency_stops(new_plan, j, conflicting_plans[j])
 
-            if len(conflicting_ids > 1):
-                for j_prime in conflicting_ids[1:]:
-                    j_prime_plan = conflicting_plans[j_prime]
-                    if self.rrt.plans_conflict(new_plan, j_prime_plan):
-                        # prune our new_plan to avoid the conflict
-                        new_plan = rrt.prune_to_avoid_conflict(new_plan, j_prime_plan)
+    #         if len(conflicting_ids > 1):
+    #             for j_prime in conflicting_ids[1:]:
+    #                 j_prime_plan = conflicting_plans[j_prime]
+    #                 if self.rrt.plans_conflict(new_plan, j_prime_plan):
+    #                     # prune our new_plan to avoid the conflict
+    #                     new_plan = rrt.prune_to_avoid_conflict(new_plan, j_prime_plan)
 
-            self.plan = new_plan
+    #         self.plan = new_plan
 
-            if j is not None and modified_j:
-                winner = j
-            else:
-                winner = max(self.bids, key = lambda x: self.bids[x])
+    #         if j is not None and modified_j:
+    #             winner = j
+    #         else:
+    #             winner = max(self.bids, key = lambda x: self.bids[x])
 
-            self.broadcast_waypoints(winner)
-            self.token_holder = False
-        else:
-            bid = self.plan.cost() - new_plan.cost()
-            self.broadcast_bid(bid)
+    #         self.broadcast_waypoints(winner)
+    #         self.token_holder = False
+    #     else:
+    #         bid = self.plan.cost() - new_plan.cost()
+    #         self.broadcast_bid(bid)
 
     def at_goal(self):
         return self.goal.contains(self.pose)
@@ -206,14 +206,17 @@ class Agent():
         while not self.at_goal():
             # move agent if we have reached the next node
             # TODO fix the use of time here, or use steer instead
-            if time.time() > self.plan[0].timestamp:
+            if time.time() > self.plan[0].stamp:
                 self.pose = plan[0]
                 self.plan = plan[1:]
 
             # run one iteration of the individual method for DMA-RRT
-            if self.mode == "cooperative":
-                self.coop_individual()
-            elif self.mode == "normal":
-                self.individual()
+            # if self.mode == "cooperative":
+            #     self.coop_individual()
+            # elif self.mode == "normal":
+            #     self.individual()
+
+            #run DMA-RRT
+            self.individual()
 
             time.sleep(1 / rate)

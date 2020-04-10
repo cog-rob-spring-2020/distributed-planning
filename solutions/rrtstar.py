@@ -336,3 +336,11 @@ class RRTstar:
         else:
             ax.set_title(f"Number of nodes in tree: {len(self.node_list)}")
             print("No path was found.")
+
+    def update_agent_plans(self, plans):
+        #add other agents paths to the environment
+        pass
+    
+    def update_pose(self, pose):
+        #update current position
+        pass

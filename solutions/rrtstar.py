@@ -7,9 +7,8 @@
 import numpy as np
 import random
 import copy
-from shapely.geometry import Point, Polygon, LineString
 
-from utils.environment import Environment, plot_environment, plot_line, plot_poly
+from utils.environment import Environment
 
 class Node:
     def __init__(self, x, y):
@@ -53,15 +52,52 @@ class NodeStamped(Node):
                " | ts: " + str(self.stamp)
 
 
-class Path():
-    def __init__(self, nodes):
-        self.nodes = nodes
-        self.emergency_stops = set()
+class Path:    
+    def __init__(self, nodes=[], start_pose=(), goal_pose=()):
+        """ A representation of a path through a 2D map parametrized by time.
+
+            This object should not be modified after initialization, except to add 
+            emergency stops. For subpaths, create a new path object. This is the
+            reason all fields except emergency_stops are immutable.
+            If all arguments are default, the ctor will give the path infinite 
+            cost. An empty path represents an infinite path, NOT a zero-cost path.
+
+            Args:
+                nodes: a list of NodeStamped objects representing the path.
+                start_pose: a 2-tuple representing the x-y position of the start.
+                goal_pose: a 2-tuple representing the x-y position of the goal.
+        """
+        self.nodes = tuple(nodes)
+        self.start_pose = start_pose
+        self.goal_pose = goal_pose
+
+        self.is_complete = False  # True if this Path goes from start to end.
+        self.cost = np.inf
+
+        if self.nodes:
+            if self.nodes[0].x == self.start_pose.x and \
+                    self.nodes[0].y == self.start_pose.y and \
+                    self.nodes[-1].x == self.goal_pose.x and \
+                    self.nodes[-1].y == self.goal_pose.y:
+                self.is_complete = True
+            
+            self.cost = self.nodes[-1].cost
+        
+        # There is no frozendict! Do not modify this!
         self.ts_dict = {node.stamp : node for node in self.nodes}
-        self.cost = self.nodes[-1].cost
+
+        self.emergency_stops = set()
 
     def mark_safe(self, node):
-        self.emergency_stops.add(node)
+        """ Add an emergency node.
+
+            Args:
+                node: A NodeStamped object that is present in the Path.
+        """
+        if node in self.nodes:
+            self.emergency_stops.add(node)
+        else:
+            raise Exception("Path Error: Cannot add e-stop that isn't in path!")
 
 
 class RRTstar:
@@ -75,15 +111,12 @@ class RRTstar:
         self.path_resolution = path_resolution
         self.connect_circle_dist = connect_circle_dist
         self.max_iter = max_iter
-        self.node_list = []
         self.curr_iter = 0
+        self.node_list = [self.start]
 
     def spin(self, return_first_path=False):
         """ Expand the tree and plan through the environment. """
         print("RRTstar >> starting spin...")
-
-        self.node_list = [self.start]
-
         for iter in range(self.max_iter):
             path = self.spin_once(return_first_path)
             if path is not None:
@@ -224,7 +257,7 @@ class RRTstar:
         """ Attempt to find a path to a goal point. Return None if can't. """
         last_id = self.search_best_goal_node()
         if last_id:
-            print("RRTstar >> found a path! on iter: ", self.curr_iter)
+            # print("RRTstar >> found a path! on iter: ", self.curr_iter)
             return self.generate_final_path(last_id)
         
         return None
@@ -244,22 +277,21 @@ class RRTstar:
         path_nodes.reverse()
         path_nodes = self.allocate_time(path_nodes)
 
-        path = Path(path_nodes)
+        path = Path(path_nodes, self.start, self.goal)
         return path
 
     def allocate_time(self, nodes):
         """ Attribute timestamps to each node in the nodes list. """
         
-        def naive_alloc(nodes):
+        def naive_alloc():
             """ Simply increment each stamp by one integer. """
             count = 0
             for node in nodes:
                 node.stamp = count
                 count += 1
-            
-            return nodes
         
-        return naive_alloc(nodes)
+        naive_alloc()
+        return nodes
 
     def dist_to_goal(self, node):
         """ Compute the Euclidean distance to the goal node. """
@@ -308,39 +340,21 @@ class RRTstar:
 
         return d, theta
 
-    def plot_tree(self):
-        """ Plot the entire RRT tree, final path, and start/goal nodes. """
-        ax = plot_environment(self.env)
+    # def update_agent_plans(self, plans):
+    #     """ Store other agent plans in a dictionary keyed by agent ID. These 
+    #         are used during time-allocation to solve collisions.
 
-        plot_poly(ax, Point(
-            (self.start.x, self.start.y)).buffer(0.3, resolution=3), "green")
-        plot_poly(ax, Point(
-            (self.goal.x, self.goal.y)).buffer(0.3, resolution=3), "red")
-
-        for node in self.node_list:
-            if node.parent is not None:
-                plot_line(ax, LineString([[node.x, node.y],
-                                          [node.parent.x, node.parent.y]]))
-
-        path = self.get_path()
-        if path is not None:
-            path_xy = [[node.x, node.y] for node in path.nodes]
-            line = LineString(path_xy)
-            extended_line = line.buffer(0.3, resolution=3)
-            plot_poly(ax, extended_line, "yellow", alpha=0.5)
-
-            ax.set_title(f"Number of nodes in tree: {len(self.node_list)} \n \
-                        Number of nodes in solution path: {len(path.nodes)} \
-                        \n Path length: {path.cost}")
-
-        else:
-            ax.set_title(f"Number of nodes in tree: {len(self.node_list)}")
-            print("No path was found.")
-
-    def update_agent_plans(self, plans):
-        #add other agents paths to the environment
-        pass
+    #         Args:
+    #             plans: a dictionary keyed by agent ID with Path objects as 
+    #                 values.
+    #     """
+    #     self.other_agent_plans = plans
     
-    def update_pose(self, pose):
-        #update current position
-        pass
+    # def update_pose(self, pos):
+    #     """ Store self agent current position for new tree generation.
+
+    #         Args:
+    #             pos: a 2-tuple representing the x-y coordinates of the agent
+    #             running the RRT algorithm.
+    #     """
+    #     self.curr_pos = pos

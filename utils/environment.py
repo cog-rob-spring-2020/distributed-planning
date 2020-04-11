@@ -35,9 +35,9 @@ def plot_environment(env, bounds=None, figsize=None):
     ax.set_aspect('equal', adjustable='box')
     return ax
 
-def plot_line(ax, line):
+def plot_line(ax, line, color):
     x, y = line.xy
-    ax.plot(x, y, color='gray', linewidth=3, solid_capstyle='round', zorder=1)
+    ax.plot(x, y, color=color, linewidth=3, solid_capstyle='round', zorder=1)
 
 def plot_poly(ax, poly, color, alpha=1.0, zorder=1):
     patch = PolygonPatch(poly, fc=color, ec="black", alpha=alpha, zorder=zorder)

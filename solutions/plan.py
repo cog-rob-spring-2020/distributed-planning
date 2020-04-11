@@ -1,10 +1,11 @@
 import numpy as np
 from matplotlib import pyplot as plt
 import time
+import random
 
-from agent import Agent
-from rrtstar import RRTstar
-from visualizer import Visualizer
+from solutions.agent import Agent
+from solutions.rrtstar import RRTstar
+from solutions.visualizer import Visualizer
 
 class Plan:
     def __init__(self, agents, env, dma_indiv, dma_coop, spin_rate):
@@ -20,6 +21,14 @@ class Plan:
                 spin_rate: the rate (in Hz) at which the planner should run
         """
         self.agents = agents
+
+        # randomly assign one agent to hold the token for replanning
+        random.choice(self.agents).token_holder = True
+
+        # make all the agents aware of the antenna IDs of their peers
+        for agent in self.agents:
+            agent.broadcast_id()
+
         self.env = env
         self.spin_rate = spin_rate
         self.curr_time = 0
@@ -50,7 +59,7 @@ class Plan:
         """
         plt.ion()
         plt.show()
-        
+
         agent_goal_stats = [agent.at_goal() for agent in self.agents]
         rate_dt = 1.0 / self.spin_rate
 
@@ -78,7 +87,7 @@ class Plan:
                         for agent in self.agents}
                 )
                 # self.visualizer.spin_once_tree(self.agents[0].rrt)
-            
+
             self.path_costs = new_path_costs
 
             agent_goal_stats = [agent.at_goal() for agent in self.agents]
@@ -89,7 +98,7 @@ class Plan:
                 time.sleep(rate_dt - time_elapsed)
 
             plt.show()
-        
+
         print("Runtime completed.")
 
     def spin_once(self):
@@ -104,7 +113,7 @@ class Plan:
                 self.dma_individual_normal(agent)
             elif agent.mode == "cooperative":
                 self.dma_individual_coop(agent)
-        
+
         self.curr_time += 1
 
 
@@ -116,7 +125,7 @@ def sol_individual(self, agent):
         plan and broadcast the next winner. Otw, it will broadcast its bid.
     """
     def multiagent_aware_time_realloc(path):
-        """ Allocates more time to nodes in a path that conflict with other 
+        """ Allocates more time to nodes in a path that conflict with other
             agent nodes, s.t. the conflict is gone.
 
             Only tokenholders should use this, to prevent duplicate conflict
@@ -140,7 +149,7 @@ def sol_individual(self, agent):
                         while path.nodes[i] == other_path.ts_dict[revised_stamp]:
                             revised_stamp += 1
                             path.nodes[i].stamp = revised_stamp
-                        
+
                         # Update all nodes after that one to have higher timetsamps.
                         for node in path.nodes[i+1:]:
                             revised_stamp += 1
@@ -206,7 +215,7 @@ def sol_coop_individual(self, agent):
     #     if agent.best_plan.cost < agent.curr_plan.cost:
     #         plan = agent.best_plan
     #         agent.best_plan = Path()
-        
+
     #     conflicting_plans = RRTstar.get_conflicts(plan)
     #     conflicting_ids = list(conflicting_plans.keys())
 

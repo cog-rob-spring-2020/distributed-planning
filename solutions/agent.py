@@ -2,7 +2,7 @@ import time
 from solutions.rrtstar import Node, NodeStamped, RRTstar, Path
 from shapely.geometry import Point
 from solutions.antenna import Antenna, TOPIC_BIDS, \
-    TOPIC_WAYPOINTS, TOPIC_ESTOPS
+                              TOPIC_WAYPOINTS, TOPIC_PEERS
 
 class Agent:
     def __init__(self, mode, start_pos, goal_pos, environment, goal_dist):
@@ -16,11 +16,11 @@ class Agent:
                 goal_pos: a 2-tuple representing the goal x-y position.
                 environment: an Environment object representing the map in which
                     the agent must plan.
-                goal_dist: a float representing the length of a single branch in 
+                goal_dist: a float representing the length of a single branch in
                     the RRT tree for the agent's planner.
         """
         self.antenna = Antenna()
-        self.antenna.find_peers()
+
         self.curr_time = 0.0  # Simulation time. Updated externally.
 
         self.mode = mode
@@ -28,16 +28,16 @@ class Agent:
 
         # Keeps track of other agents' current bids for PPI
         #     (potential path improvement) at any given time:
-        self.bids = {id : None for id in self.antenna.peers}
+        self.bids = dict()
 
         # Keeps track of other agents' plans so that we can
-        #   add the other agents as obstacles when replanning
-        self.other_agent_plans = {id : None for id in self.antenna.peers}
+        #   add the other agents as obstacles when replanning:
+        self.other_agent_plans = dict()
 
         # Initial state and environment
         self.start = start_pos
         self.goal = goal_pos
-        self.pos = Point(self.start[0], self.start[1])
+        self.pos = self.start
         self.environment = environment
 
         self.rrt = RRTstar(self.start, self.goal, self.environment, goal_dist)
@@ -49,11 +49,20 @@ class Agent:
         # Register as listener for different kinds of messages
         self.antenna.on_message("bids", self.received_bid)
         self.antenna.on_message("waypoints", self.received_waypoints)
+        self.antenna.on_message("peers", self.received_id)
 
         # if mode != "cooperative" and mode != "normal":
         #     raise ValueError("mode must be 'normal' or 'cooperative'")
         # self.check_estops = (mode == 'cooperative')
         # self.antenna.on_message("estop", self.received_estop)
+
+    def broadcast_id(self):
+        msg = {"topic":TOPIC_PEERS}
+        self.antenna.broadcast(TOPIC_PEERS, msg)
+
+    def received_id(self, sender_id, msg):
+        self.bids[sender_id] = None
+        self.other_agent_plans[sender_id] = None
 
     """ The following methods represent the interaction component of DMA-RRT
         as described in algorithms 5 and 8.
@@ -61,7 +70,6 @@ class Agent:
     ##########################################################################
     def broadcast_bid(self, bid):
         msg = {"topic":TOPIC_BIDS, "bid":bid}
-
         self.antenna.broadcast(TOPIC_BIDS, msg)
 
     def received_bid(self, sender_id, msg):
@@ -70,7 +78,6 @@ class Agent:
 
     def broadcast_waypoints(self, winner_id):
         msg = {"topic":TOPIC_WAYPOINTS, "plan":self.curr_plan, "winner_id":winner_id}
-
         self.antenna.broadcast(TOPIC_WAYPOINTS, msg)
 
     def received_waypoints(self, sender_id, msg):
@@ -78,8 +85,9 @@ class Agent:
         winner_id = msg["winner_id"]
 
         self.other_agent_plans[sender_id] = other_plan
-        if winner_id == self.id:
+        if winner_id == self.antenna.uuid:
             self.token_holder = True
+
     ##########################################################################
 
     def at_goal(self):
@@ -91,7 +99,7 @@ class Agent:
         self.curr_time = curr_time
 
     def spin(self, rate):
-        """ Runs the agent's individual component on a timer until it is 
+        """ Runs the agent's individual component on a timer until it is
             sufficiently close to the goal.
 
             Args:
@@ -103,8 +111,8 @@ class Agent:
             time.sleep(1.0 / rate)
 
     def spin_once(self):
-        """ Runs the agent's individual DMA-RRT component once. 
-            
+        """ Runs the agent's individual DMA-RRT component once.
+
             The interaction component is handled using Agent callbacks.
         """
         # Move agent if we have reached the next node

@@ -5,7 +5,7 @@ from utils.environment import Environment
 
 
 def test_generated_paths():
-    print("testing test_generated_paths...")
+    print("testing test_generated_paths...\n")
 
     # set up a known feasible environment
     environment = Environment(yaml_file="utils/simple.yaml")

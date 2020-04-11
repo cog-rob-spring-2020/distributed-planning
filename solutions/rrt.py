@@ -149,7 +149,7 @@ def rrt(bounds, environment, start_pose, radius, end_region):
     path = [next_point, new_point]
     for e in reversed(E):
         # plot the edge while we're here
-        plot_line(ax, LineString(list(e)))
+        plot_line(ax, LineString(list(e)), "yellow")
         # check for a matching edge pair that led to the previous point
         # comparing float equality isn't reliable: https://stackoverflow.com/a/33024979
         if e[1] == next_point:

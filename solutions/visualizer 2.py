@@ -2,7 +2,7 @@ from matplotlib import pyplot as plt
 from IPython.display import clear_output
 from shapely.geometry import Point, Polygon, LineString
 
-from solutions.rrtstar import RRTstar
+from rrtstar import RRTstar
 
 from utils.environment import Environment, plot_environment, plot_line, \
     plot_poly
@@ -13,7 +13,7 @@ class Visualizer:
         self.finished_first_viz = False
 
     def plot_env(self):
-        """ Plot the environment, including static obstacles but excluding
+        """ Plot the environment, including static obstacles but excluding 
             agents and RRT trees.
 
             Returns:
@@ -24,7 +24,7 @@ class Visualizer:
         return ax
 
     def plot_tree(self, rrt):
-        """ Plot RRT tree, final path, and start/goal nodes.
+        """ Plot RRT tree, final path, and start/goal nodes. 
 
             Args:
                 ax: a Plot axis object on which to plot the tree.

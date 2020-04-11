@@ -17,7 +17,9 @@ def main():
     environment = Environment(yaml_file="utils/simple.yaml")
 
     # initialize all of the agents that will live in environment
-    agent = Agent(mode = "normal", x_start = 0, y_start = 0,
+    agent = Agent(mode = "normal",
+                  x_start = 0,
+                  y_start = 0,
                   goal_region = Polygon([(10, 5), (10, 6), (11, 6), (11, 5)]),
                   environment = environment,
                   bounds = (-2, -3, 12, 8),

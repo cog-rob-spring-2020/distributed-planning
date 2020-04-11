@@ -34,7 +34,7 @@ class Agent():
         self.pose = Point(x_start, y_start)
         self.goal = goal_region
 
-        self.rrt = RRTstar((x_start, y_start), self.goal, self.environment, self.goal_dist)
+        self.rrt = RRTstar((x_start, y_start), (self.goal.x, self.goal.y), self.environment, self.goal_dist)
 
         # a list of NodeStamped waypoints, starting with current pose
         self.plan = self.rrt.get_path()
@@ -69,7 +69,7 @@ class Agent():
         winner_id = msg["winner_id"]
 
         self.plans[sender_id] = other_plan
-        if winner_id == self.id:
+        if winner_id == self.antenna.uuid:
             self.token_holder = True
 
     # def broadcast_estop(self, stop_id, stop_node):
@@ -194,7 +194,11 @@ class Agent():
     #         self.broadcast_bid(bid)
 
     def at_goal(self):
-        return self.goal.contains(self.pose)
+        # TODO: use this once we switch back to goal polygons
+        # return self.goal.contains(self.pose)
+
+        dist_from_goal = ((self.pose.x - self.goal.x)**2 + (self.pose.y - self.goal.y)**2)**(1/2)
+        return dist_from_goal <= self.goal_dist
 
     def spin(self, rate):
         """

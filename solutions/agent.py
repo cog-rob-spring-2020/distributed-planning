@@ -70,7 +70,7 @@ class Agent:
         as described in algorithms 5 and 8.
     """
     ##########################################################################
-    
+
     def broadcast_id(self):
         msg = {"topic":TOPIC_PEERS}
         self.antenna.broadcast(TOPIC_PEERS, msg)
@@ -85,6 +85,15 @@ class Agent:
         self.antenna.broadcast(TOPIC_BIDS, msg)
 
     def received_bid(self, sender_id, msg):
+        """
+        If the agent is not the one who sent the message, updates
+        its `bids` dictionary to reflect the bid of the agent who did
+        send the message.
+
+        sender_id - the id of the agent who sent the message
+        msg - a dictionary containing the PPI bid of the agent who
+        sent the message under the key "bid"
+        """
         if sender_id != self.antenna.uuid:
             bidder = sender_id
             self.bids[bidder] = msg["bid"]
@@ -94,6 +103,19 @@ class Agent:
         self.antenna.broadcast(TOPIC_WAYPOINTS, msg)
 
     def received_waypoints(self, sender_id, msg):
+        """
+        If the agent is the winner, updates its state to become the
+        token holder.
+
+        If the agent is not the one who sent the message, also updates its
+        `other_agent_plans` dictionary to reflect the updated plan of the
+        agent who did send the message.
+
+        sender_id - the id of the agent who sent the message
+        msg - a dictionary containing the id of the winning agent under
+        the key "winner_id", as well as the updated plan of the agent who
+        sent the message under the key "plan"
+        """
         winner_id = msg["winner_id"]
         if winner_id == self.antenna.uuid:
             self.token_holder = True

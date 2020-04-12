@@ -32,8 +32,8 @@ def test_antenna_callback_bids():
                    goal_dist = 0.3,
                    rrt_iters = 200)
     agent2 = Agent(mode = "normal",
-                   start_pos = (1, 1),
-                   goal_pos = (10.5, 5.5),
+                   start_pos = (2, 3),
+                   goal_pos = (0, 4),
                    environment = environment,
                    goal_dist = 0.3,
                    rrt_iters = 200)
@@ -60,8 +60,8 @@ def test_antenna_callback_waypoints():
                    goal_dist = 0.3,
                    rrt_iters = 200)
     agent2 = Agent(mode = "normal",
-                   start_pos = (1, 1),
-                   goal_pos = (10.5, 5.5),
+                   start_pos = (2, 3),
+                   goal_pos = (0, 4),
                    environment = environment,
                    goal_dist = 0.3,
                    rrt_iters = 200)
@@ -90,8 +90,8 @@ def test_antenna_callback_peers():
                    goal_dist = 0.3,
                    rrt_iters = 200)
     agent2 = Agent(mode = "normal",
-                   start_pos = (1, 1),
-                   goal_pos = (10.5, 5.5),
+                   start_pos = (2, 3),
+                   goal_pos = (0, 4),
                    environment = environment,
                    goal_dist = 0.3,
                    rrt_iters = 200)

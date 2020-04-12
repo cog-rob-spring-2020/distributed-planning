@@ -150,7 +150,7 @@ class Plan:
         return path
 
 
-def sol_individual(self, agent):
+def dma_individual(self, agent):
     """ Individual component of DMA-RRT as described in algorithm 4
         from Desaraju/How 2012.
 
@@ -184,26 +184,42 @@ def sol_individual(self, agent):
 
         # Broadcast the new winner of the bidding round
         if agent.bids:
-            agent.token_holder = False
-            winner_bid = max(agent.bids.values())
-            winner_ids = [id for id, bid in agent.bids.items() \
-                if bid == winner_bid]
-            winner_id = random.choice(winner_ids)
-
+            winner_id = compute_winner(self)
             agent.broadcast_waypoints(winner_id)
     else:
-        # Broadcast own bid
-        # We use abs in the event that we are comparing an incomplete path
-        #     to a complete path. Incomplete paths will usually have smaller
-        #     cost; see Path definition for more info.
-        bid = np.abs(agent.curr_plan.cost - agent.best_plan.cost)
-        agent.broadcast_bid(bid)
+        bid(agent)
 
     # Prevent agent from getting the token if they finish.
     if agent.at_goal():
         agent.broadcast_bid(-1000.0)
 
-def sol_coop_individual(self, agent):
+def compute_winner(agent):
+    """ Returns the id of the agent with the highest PPI (potential path
+        improvement) bid, based on the bid information in the agent's
+        `bids` dictionary.
+
+        Assumes the agent's `bids` dictionary contains at least one bid.
+    """
+    agent.token_holder = False
+    winner_bid = max(agent.bids.values())
+    winner_ids = [id for id, bid in agent.bids.items() \
+        if bid == winner_bid]
+    winner_id = random.choice(winner_ids)
+
+    return winner_id
+
+def bid(agent):
+    """ Calculates and broadcasts the agent's bid, or the absolute
+        difference in cost between the current plan the agent is following
+        and the best plan it has found so far.
+    """
+    # Broadcast own bid
+    # We use abs in the event that we are comparing an incomplete path
+    #     to a complete path. Incomplete paths will usually have smaller
+    #     cost; see Path definition for more info.
+    agent.broadcast_bid(np.abs(agent.curr_plan.cost - agent.best_plan.cost))
+
+def dma_coop_individual(self, agent):
     """ Individual component of Cooperative DMA-RRT as described
         in algorithm 6 from Desaraju/How 2012.
     """
@@ -253,3 +269,4 @@ def sol_coop_individual(self, agent):
     #     # Broadcast own bid
     #     bid = agent.curr_plan.cost - agent.best_plan.cost
     #     agent.broadcast_bid(bid)
+    pass

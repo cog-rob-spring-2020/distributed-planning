@@ -85,9 +85,8 @@ class Visualizer:
         clear_output(wait=True)
         ax = self.plot_env()
         for agent in agents:
+            if viz_tree:
+                self.plot_tree(ax, agent.rrt)
             self.plot_path(ax, agent.best_plan, agent.antenna.uuid, "yellow")
             self.plot_path(ax, agent.curr_plan, agent.antenna.uuid, "gray")
             self.plot_current_pos(ax, agent.pos, agent.antenna.uuid)
-
-            if viz_tree:
-                self.plot_tree(ax, agent.rrt)

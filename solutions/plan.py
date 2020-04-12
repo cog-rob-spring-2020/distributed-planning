@@ -9,7 +9,7 @@ from solutions.visualizer import Visualizer
 
 class Plan:
     def __init__(self, agents, env, dma_indiv, dma_coop, spin_rate,
-                 viz_trees=False):
+                 viz_trees=False, headless=False):
         """ Plan object runs multiagent experiments with DMA-RRT.
 
             Args:
@@ -22,6 +22,7 @@ class Plan:
                 spin_rate: the rate (in Hz) at which the planner should run
                 viz_trees: if True, visualizer will show RRT trees for all
                     agents in orange.
+                headless: if True, nothing will be visualized during spin.
         """
         self.agents = agents
 
@@ -36,6 +37,7 @@ class Plan:
         self.spin_rate = spin_rate
         self.curr_time = 0
         self.viz_trees = viz_trees
+        self.headless = headless
 
         Plan.dma_individual_normal = dma_indiv
         Plan.dma_individual_coop = dma_coop
@@ -66,15 +68,9 @@ class Plan:
         while (False in agent_goal_stats) and (self.curr_time <= run_time):
             start_time = time.time()
 
-            # print('token holder: ', [agent.token_holder for agent in self.agents])
-            # bids = self.agents[0].bids
-            # bids[self.agents[0].antenna.uuid] = self.agents[0].curr_plan.cost - self.agents[0].best_plan.cost
-            # print('bids: ', bids)
-            # print('curr_cost', [agent.curr_plan.cost for agent in self.agents])
-            # print('best_cost', [agent.best_plan.cost for agent in self.agents])
-
             self.spin_once()
-            self.visualizer.spin_once(self.agents, self.viz_trees)
+            if not self.headless:
+                self.visualizer.spin_once(self.agents, self.viz_trees)
 
             agent_goal_stats = [agent.at_goal() for agent in self.agents]
 
@@ -194,16 +190,9 @@ def sol_individual(self, agent):
                 if bid == winner_bid]
             winner_id = random.choice(winner_ids)
 
-            # print('winner_bid:', winner_bid)
-            # print('winner_ids:', winner_ids)
-            # print("winner_id:", winner_id)
-
             agent.broadcast_waypoints(winner_id)
     else:
         # Broadcast own bid
-
-        # print("i am bidding:", agent.antenna.uuid)
-
         # We use abs in the event that we are comparing an incomplete path
         #     to a complete path. Incomplete paths will usually have smaller
         #     cost; see Path definition for more info.

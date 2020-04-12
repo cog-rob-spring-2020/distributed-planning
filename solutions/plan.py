@@ -99,7 +99,7 @@ class Plan:
                     self.dma_individual_normal(self.agents[i])
                 elif self.agents[i].mode == "cooperative":
                     self.dma_individual_coop(self.agents[i])
-        
+
         # Do token-holder step last:
         self.agents[token_holder_id].curr_time = self.curr_time
         self.agents[token_holder_id].spin_once()
@@ -113,7 +113,7 @@ class Plan:
 
     @staticmethod
     def multiagent_aware_time_realloc(path, other_agent_plans):
-        """ Allocates more time to nodes in a path that conflict with other 
+        """ Allocates more time to nodes in a path that conflict with other
             agent nodes, s.t. the conflict is gone.
 
             Only tokenholders should use this, to prevent duplicate conflict
@@ -121,7 +121,7 @@ class Plan:
 
             Args:
                 path: a Path object.
-                other_agent_plans: a dictionary keyed by Agent ID containing 
+                other_agent_plans: a dictionary keyed by Agent ID containing
                     the current Path objects of other agents in the scenario.
             Returns:
                 a Path object similar to `path` but with collision-free
@@ -165,7 +165,7 @@ def sol_individual(self, agent):
 
     # Find the new best path in the tree
     new_plan = agent.rrt.get_path()
-        
+
     # Assign first "current path" found
     if not agent.curr_plan.nodes:
         agent.curr_plan = new_plan
@@ -173,7 +173,7 @@ def sol_individual(self, agent):
 
     if agent.token_holder:
 
-        # print("i am tokeholder:", agent.antenna.uuid)
+        # print("i am token_holder:", agent.antenna.uuid)
 
         # Replan to new best path
         agent.curr_plan = agent.best_plan

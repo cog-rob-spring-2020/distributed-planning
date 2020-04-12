@@ -1,11 +1,18 @@
 import time
+import numpy as np
 from solutions.rrtstar import Node, NodeStamped, RRTstar, Path
 from shapely.geometry import Point
 from solutions.antenna import Antenna, TOPIC_BIDS, \
                               TOPIC_WAYPOINTS, TOPIC_PEERS
 
 class Agent:
-    def __init__(self, mode, start_pos, goal_pos, environment, goal_dist):
+    def __init__(self,
+                 mode,
+                 start_pos,
+                 goal_pos,
+                 environment,
+                 goal_dist,
+                 rrt_iters):
         """ Initializer for Agent class; represents a robot capable of planning
             and moving in an environment.
 
@@ -18,6 +25,8 @@ class Agent:
                     the agent must plan.
                 goal_dist: a float representing the length of a single branch in
                     the RRT tree for the agent's planner.
+                rrt_iters: the number of iterations to run for RRT at each
+                    spin_once
         """
         self.antenna = Antenna()
 
@@ -40,7 +49,8 @@ class Agent:
         self.pos = self.start
         self.environment = environment
 
-        self.rrt = RRTstar(self.start, self.goal, self.environment, goal_dist)
+        self.rrt = RRTstar(self.start, self.goal, self.environment, goal_dist,
+                           max_iter=rrt_iters)
         # curr_plan is the currently executing plan; best_plan is a lower-cost path
         #     than curr_plan, if one exists. The cost difference is the bid!
         self.curr_plan = Path()
@@ -56,43 +66,50 @@ class Agent:
         # self.check_estops = (mode == 'cooperative')
         # self.antenna.on_message("estop", self.received_estop)
 
+    """ The following methods represent the interaction component of DMA-RRT
+        as described in algorithms 5 and 8.
+    """
+    ##########################################################################
+    
     def broadcast_id(self):
         msg = {"topic":TOPIC_PEERS}
         self.antenna.broadcast(TOPIC_PEERS, msg)
 
     def received_id(self, sender_id, msg):
-        self.bids[sender_id] = None
-        self.other_agent_plans[sender_id] = None
+        if sender_id != self.antenna.uuid:
+            self.bids[sender_id] = 0.0
+            self.other_agent_plans[sender_id] = Path()
 
-    """ The following methods represent the interaction component of DMA-RRT
-        as described in algorithms 5 and 8.
-    """
-    ##########################################################################
     def broadcast_bid(self, bid):
         msg = {"topic":TOPIC_BIDS, "bid":bid}
         self.antenna.broadcast(TOPIC_BIDS, msg)
 
     def received_bid(self, sender_id, msg):
-        bidder = sender_id
-        self.bids[bidder] = msg["bid"]
+        if sender_id != self.antenna.uuid:
+            bidder = sender_id
+            self.bids[bidder] = msg["bid"]
 
     def broadcast_waypoints(self, winner_id):
         msg = {"topic":TOPIC_WAYPOINTS, "plan":self.curr_plan, "winner_id":winner_id}
         self.antenna.broadcast(TOPIC_WAYPOINTS, msg)
 
     def received_waypoints(self, sender_id, msg):
-        other_plan = msg["plan"]
         winner_id = msg["winner_id"]
-
-        self.other_agent_plans[sender_id] = other_plan
         if winner_id == self.antenna.uuid:
             self.token_holder = True
+
+        if sender_id != self.antenna.uuid:
+            other_plan = msg["plan"]
+            self.other_agent_plans[sender_id] = other_plan
 
     ##########################################################################
 
     def at_goal(self):
         """ Checks if the agent's current location is the goal location. """
-        return self.pos == self.goal
+        dist = np.sqrt((self.pos[0]-self.goal[0])**2 + (self.pos[1]-self.goal[1])**2)
+        if dist <= 0.3:
+            return True
+        return False
 
     def update_time(self, curr_time):
         """ Update the internal time counter. """
@@ -117,11 +134,9 @@ class Agent:
         """
         # Move agent if we have reached the next node
         if self.curr_plan.nodes:
-            if self.curr_time > self.curr_plan.nodes[0].stamp:
-                self.pos = (self.curr_plan.nodes[0].x,
-                            self.curr_plan.nodes[0].y)
-                # TODO(marcus): brodacast current position!
-                # self.curr_plan = plan[1:]
+            if self.curr_time in self.curr_plan.ts_dict.keys():
+                self.pos = (self.curr_plan.ts_dict[self.curr_time].x,
+                            self.curr_plan.ts_dict[self.curr_time].y)
 
     ##########################################################################
     ############################# E-STOP-CODE ################################

@@ -29,94 +29,128 @@ class Node:
 
 
 class NodeStamped(Node):
-    def __init__(self, x, y):
-        super.__init__(x, y)
-        self.stamp = None
-    
     def __init__(self, node):
-        self.x = copy.deepcopy(node.x)
-        self.y = copy.deepcopy(node.y)
-        self.path_x = copy.deepcopy(node.path_x)
-        self.path_x = copy.deepcopy(node.path_y)
-        self.path_y = copy.deepcopy(node.path_y)
-        self.parent = copy.deepcopy(node.parent)
-        self.cost = copy.deepcopy(node.cost)
-        
-        if isinstance(node, self.__class__):
-            self.stamp = copy.deepcopy(node.stamp)
-        else:
-            self.stamp = None
+        super().__init__(node.x, node.y)
+        self.path_x = node.path_x
+        self.path_y = node.path_y
+        self.parent = node.parent
+        self.cost = node.cost
+        self.stamp = None
     
     def __str__(self):
         return "node xy: " + str(self.x) + ", " + str(self.y) + \
                " | ts: " + str(self.stamp)
 
+    def __eq__(self, other):
+        if isinstance(other, self.__class__) or isinstance(other, Node):
+            return (self.x == other.x) and (self.y == other.y)
+        return False
+
 
 class Path:    
-    def __init__(self, nodes=[], start_pose=(), goal_pose=()):
+    def __init__(self, nodes=[], start_node=None, goal_node=None):
         """ A representation of a path through a 2D map parametrized by time.
 
             This object should not be modified after initialization, except to add 
             emergency stops. For subpaths, create a new path object. This is the
-            reason all fields except emergency_stops are immutable.
+            reason all fields are immutable when possible.
             If all arguments are default, the ctor will give the path infinite 
             cost. An empty path represents an infinite path, NOT a zero-cost path.
 
             Args:
                 nodes: a list of NodeStamped objects representing the path.
-                start_pose: a 2-tuple representing the x-y position of the start.
-                goal_pose: a 2-tuple representing the x-y position of the goal.
+                start_node: a NodeStamped representing the x-y position of the start.
+                goal_node: a NodeStamped representing the x-y position of the goal.
         """
         self.nodes = tuple(nodes)
-        self.start_pose = start_pose
-        self.goal_pose = goal_pose
+        self.start_node = start_node
+        self.goal_node = goal_node
 
-        self.is_complete = False  # True if this Path goes from start to end.
+        self.is_complete = False  # True if this Path goes from start to end
         self.cost = np.inf
+        self.dist_to_goal = np.inf
 
         if self.nodes:
-            if self.nodes[0].x == self.start_pose.x and \
-                    self.nodes[0].y == self.start_pose.y and \
-                    self.nodes[-1].x == self.goal_pose.x and \
-                    self.nodes[-1].y == self.goal_pose.y:
+            if self.nodes[-1].x == self.goal_node.x and \
+                    self.nodes[-1].y == self.goal_node.y:
                 self.is_complete = True
-            
-            self.cost = self.nodes[-1].cost
+                self.cost = self.nodes[-1].cost
+                self.dist_to_goal = 0.0
+            else:
+                # Cost of an incomplete path is the distance to the goal
+                self.dist_to_goal = self.dist_between_nodes(self.nodes[-1],
+                    NodeStamped(self.goal_node))
+                self.cost = self.dist_to_goal  # for bids
         
         # There is no frozendict! Do not modify this!
         self.ts_dict = {node.stamp : node for node in self.nodes}
 
-        self.emergency_stops = set()
+    def __str__(self):
+        writ = "Path start: " +  str(self.start_node) + \
+               "\nPath goal: " + str(self.goal_node) + \
+               "\nPath completion status: " + str(self.is_complete) + \
+               "\nPath cost: " + str(self.cost) + \
+               "\nPath dist_to_goal: " + str(self.dist_to_goal) + \
+               "\nPath nodes length: " + str(len(self.nodes)) + \
+               "\nPath nodes: "
+        for node in self.nodes:
+            writ += '\n\t' + str(node)
+        
+        return writ
 
-    def mark_safe(self, node):
-        """ Add an emergency node.
+    def dist_between_nodes(self, from_node, to_node):
+        """ Compute the Euclidean distance to the goal node. """
+        dx = from_node.x - to_node.x
+        dy = from_node.y - to_node.y
+
+        return np.sqrt(np.square(dx) + np.square(dy))
+
+    def get_cost_between(self, from_id, to_id):
+        """ Return the cost between two node IDs. 
 
             Args:
-                node: A NodeStamped object that is present in the Path.
+                from_id: an integer representing the id of the node in 
+                    self.nodes from which the calculation is done.
+                to_id: an integer representing the id of the node in 
+                    self.nodes that is the destination.
+                
+            Returns: a float representing the cost between the nodes.
         """
-        if node in self.nodes:
-            self.emergency_stops.add(node)
-        else:
-            raise Exception("Path Error: Cannot add e-stop that isn't in path!")
+        if to_id > 0:
+            assert(to_id > from_id)
+
+        from_cost = self.nodes[from_id].cost
+        to_cost = self.nodes[to_id].cost
+
+        return to_cost - from_cost
 
 
 class RRTstar:
     def __init__(self, start, goal, env, goal_dist=0.5, goal_sample_rate=0.7,
-                 path_resolution=0.1, connect_circle_dist=20.0, max_iter=1000):
+                 path_resolution=0.1, connect_circle_dist=5.0, max_iter=1000):
+        # Planner states
         self.start = Node(start[0], start[1])
         self.goal = Node(goal[0], goal[1])
         self.env = env
+        self.curr_iter = 0
+        self.node_list = [self.start]
+        self.found_complete_path = False
+
+        # Planner parameters
         self.goal_dist = goal_dist
         self.goal_sample_rate = goal_sample_rate
         self.path_resolution = path_resolution
         self.connect_circle_dist = connect_circle_dist
         self.max_iter = max_iter
-        self.curr_iter = 0
-        self.node_list = [self.start]
+
+        # Persistent states 
+        self.best_path = Path()
+        self.curr_pos = self.start
+        self.nodes_traveled = [self.start]
 
     def spin(self, return_first_path=False):
         """ Expand the tree and plan through the environment. """
-        print("RRTstar >> starting spin...")
+        # print("RRTstar >> starting spin...")
         for iter in range(self.max_iter):
             path = self.spin_once(return_first_path)
             if path is not None:
@@ -150,7 +184,7 @@ class RRTstar:
     def steer(self, from_node, to_node):
         """ Drive the growth of the tree towards the goal point. """
         new_node = Node(from_node.x, from_node.y)
-        d, theta = self.calc_dist_and_angle(new_node, to_node)
+        d, theta = RRTstar.calc_dist_and_angle(new_node, to_node)
 
         new_node.path_x = [new_node.x]
         new_node.path_y = [new_node.y]
@@ -166,7 +200,7 @@ class RRTstar:
             new_node.path_x.append(new_node.x)
             new_node.path_y.append(new_node.y)
 
-        d, _ = self.calc_dist_and_angle(new_node, to_node)
+        d, _ = RRTstar.calc_dist_and_angle(new_node, to_node)
         if d <= self.path_resolution:
             new_node.path_x.append(to_node.x)
             new_node.path_y.append(to_node.y)
@@ -189,7 +223,7 @@ class RRTstar:
             t_node = self.steer(near_node, new_node)
 
             if t_node and self.env.collision_free(t_node.x, t_node.y):
-                costs.append(self.compute_new_cost(near_node, new_node))
+                costs.append(RRTstar.compute_new_cost(near_node, new_node))
             else:
                 costs.append(np.inf)  # Collision nodes have inf cost.
             
@@ -204,9 +238,10 @@ class RRTstar:
 
         return new_node
 
-    def compute_new_cost(self, from_node, to_node):
+    @staticmethod
+    def compute_new_cost(from_node, to_node):
         """ Compute cost between two nodes. """
-        d, _ = self.calc_dist_and_angle(from_node, to_node)
+        d, _ = RRTstar.calc_dist_and_angle(from_node, to_node)
         return from_node.cost + d
 
     def search_best_goal_node(self):
@@ -222,13 +257,11 @@ class RRTstar:
             if t_node and self.env.collision_free(t_node.x, t_node.y):
                 safe_goal_ids.append(id)
         
-        if len(safe_goal_ids) == 0:
-            return None
-        
-        min_cost = min([self.node_list[i].cost for i in safe_goal_ids])
-        for i in safe_goal_ids:
-            if self.node_list[i].cost == min_cost:
-                return i
+        if len(safe_goal_ids) != 0:
+            min_cost = min([self.node_list[i].cost for i in safe_goal_ids])
+            for i in safe_goal_ids:
+                if self.node_list[i].cost == min_cost:
+                    return i
         
         return None
 
@@ -239,7 +272,7 @@ class RRTstar:
             edge_node = self.steer(new_node, near_node)
 
             if edge_node:
-                edge_node.cost = self.compute_new_cost(new_node, near_node)
+                edge_node.cost = RRTstar.compute_new_cost(new_node, near_node)
 
                 if near_node.cost > edge_node.cost and \
                         self.env.collision_free(edge_node.x, edge_node.y):
@@ -250,34 +283,92 @@ class RRTstar:
         """ Propagate cost down the tree to all leaves of the parent. """
         for node in self.node_list:
             if node.parent == parent_node:
-                node.cost = self.compute_new_cost(parent_node, node)
+                node.cost = RRTstar.compute_new_cost(parent_node, node)
                 self.propagate_cost(node)
 
     def get_path(self):
-        """ Attempt to find a path to a goal point. Return None if can't. """
-        last_id = self.search_best_goal_node()
-        if last_id:
-            # print("RRTstar >> found a path! on iter: ", self.curr_iter)
-            return self.generate_final_path(last_id)
-        
-        return None
+        """ Attempt to find a path to a goal point. Returns the best path.
 
-    def generate_final_path(self, id):
+            If the best path found is incomplete, then it still returns this
+            path.
+
+            Returns: a Path object representing the current best path to the
+                goal node.
+        """
+        last_id = self.search_best_goal_node()
+        new_path = self.generate_final_path(last_id)
+        
+        # Get cost of new path starting from current position
+        cur_node_id = new_path.nodes.index(self.curr_pos)
+        new_path_cost_adj = new_path.get_cost_between(cur_node_id, -1)
+
+        # Get cost of best path starting from current position
+        cur_node_id = None
+        best_path_cost_adj = self.best_path.cost
+        if self.best_path.nodes:
+            cur_node_id = self.best_path.nodes.index(self.best_path.start_node)
+            best_path_cost_adj = self.best_path.get_cost_between(cur_node_id, -1)
+
+        # Choose the new path if we have complete paths and it's cheaper
+        if self.found_complete_path:
+            if (new_path_cost_adj < best_path_cost_adj) and \
+                    new_path.is_complete:
+                self.best_path = new_path
+        else:
+            # Choose the new path if it's complete and the best isn't
+            if (new_path.is_complete) and (not self.best_path.is_complete):
+                self.found_complete_path = True
+                self.best_path = new_path
+            # Choose the new path if its closer to the goal point
+            elif new_path.dist_to_goal < self.best_path.dist_to_goal:
+                self.best_path = new_path
+        
+        return self.best_path
+
+    def generate_final_path(self, id=None):
         """ Prune the final path once the goal has been found. """
-        self.goal.cost = self.compute_new_cost(self.node_list[id], self.goal)
+        node = None
+        path_nodes = []
+
+        if id:
+            # Complete path
+            self.found_complete_path = True
+            goal_node = NodeStamped(self.goal)
+            goal_node.cost = RRTstar.compute_new_cost(
+                self.node_list[id], self.goal)
+            path_nodes = [goal_node]
+        else:
+            # Incomplete path
+            dlist = [self.dist_to_goal(node) for node in self.node_list]
+            id = dlist.index(min(dlist))
+
         node = self.node_list[id]
-        path_nodes = [NodeStamped(self.goal)]
 
         while node.parent is not None:
             node_stamped = NodeStamped(node)
             path_nodes.append(node_stamped)
             node = node.parent
         
-        path_nodes.append(NodeStamped(node))
         path_nodes.reverse()
+
+        # Weird edge case where nodes are empty when close to goal
+        if not path_nodes:
+            return self.best_path
+
+        # Add the path already traveled:
+        if self.nodes_traveled:
+            path_parent = self.nodes_traveled[-1]
+            path_nodes[0].parent = path_parent
+            for node in path_nodes:
+                node.cost += path_parent.cost
+            path_nodes = [NodeStamped(node) for node in self.nodes_traveled] \
+                + path_nodes
+
         path_nodes = self.allocate_time(path_nodes)
 
-        path = Path(path_nodes, self.start, self.goal)
+        path = Path(path_nodes,
+                    NodeStamped(self.start),
+                    NodeStamped(self.goal))
         return path
 
     def allocate_time(self, nodes):
@@ -331,7 +422,8 @@ class RRTstar:
 
         return near_ids
 
-    def calc_dist_and_angle(self, from_node, to_node):
+    @staticmethod
+    def calc_dist_and_angle(from_node, to_node):
         """ Compute the distance and angle between two nodes. """
         dx = to_node.x - from_node.x
         dy = to_node.y - from_node.y
@@ -339,22 +431,29 @@ class RRTstar:
         theta = np.arctan2(dy, dx)
 
         return d, theta
-
-    # def update_agent_plans(self, plans):
-    #     """ Store other agent plans in a dictionary keyed by agent ID. These 
-    #         are used during time-allocation to solve collisions.
-
-    #         Args:
-    #             plans: a dictionary keyed by agent ID with Path objects as 
-    #                 values.
-    #     """
-    #     self.other_agent_plans = plans
     
-    # def update_pose(self, pos):
-    #     """ Store self agent current position for new tree generation.
+    def update_pos(self, pos, wipe_tree=True):
+        """ Store self agent current position for new tree generation.
 
-    #         Args:
-    #             pos: a 2-tuple representing the x-y coordinates of the agent
-    #             running the RRT algorithm.
-    #     """
-    #     self.curr_pos = pos
+            Note that this will wipe the existing tree, including the 
+            node_list, if `wipe_tree` is set to True. This does not 
+            reset `best_path` or `nodes_traveled`.
+            Member updates only happen if the incoming position is not the
+            same as the current recorded position (i.e. we haven't moved).
+            Tree wipe doesn't happen if we haven't moved.
+
+            Args:
+                pos: a 2-tuple representing the x-y coordinates of the agent
+                running the RRT algorithm.
+        """
+        new_pos = Node(pos[0], pos[1])
+        if new_pos != self.curr_pos:
+            new_pos.cost = RRTstar.compute_new_cost(self.nodes_traveled[-1],
+                                                    new_pos)
+            self.nodes_traveled.append(new_pos)
+            self.curr_pos = new_pos
+
+            if wipe_tree:
+                self.start = new_pos
+                self.curr_iter = 0
+                self.node_list = [self.start]

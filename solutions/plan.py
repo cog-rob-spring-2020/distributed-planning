@@ -209,9 +209,13 @@ def compute_winner(agent):
     return winner_id
 
 def bid(agent):
-    """ Calculates and broadcasts the agent's bid, or the absolute
-        difference in cost between the current plan the agent is following
-        and the best plan it has found so far.
+    """ Calculates and broadcasts the agent's bid of its
+        potential path improvement (PPI).
+
+        Recall that the PPI is defined to be the difference between the
+        agent's current path and the best path returned by its RRT planner,
+        representing how much better of a path the agent could have if
+        given the opportunity to replan.
     """
     # Broadcast own bid
     # We use abs in the event that we are comparing an incomplete path

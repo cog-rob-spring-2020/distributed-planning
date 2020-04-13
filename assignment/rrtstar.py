@@ -8,7 +8,7 @@ import numpy as np
 import random
 import copy
 
-from utils.environment import Environment
+from environment import Environment
 
 class Node:
     def __init__(self, x, y):
@@ -48,7 +48,7 @@ class NodeStamped(Node):
 
 
 class Path:    
-    def __init__(self, nodes=[], start_node=None, goal_node=None):
+    def __init__(self, nodes=[], start_node=None, goal_node=None, penalty=0):
         """ A representation of a path through a 2D map parametrized by time.
 
             This object should not be modified after initialization, except to add 
@@ -61,6 +61,7 @@ class Path:
                 nodes: a list of NodeStamped objects representing the path.
                 start_node: a NodeStamped representing the x-y position of the start.
                 goal_node: a NodeStamped representing the x-y position of the goal.
+                penalty: a float to be added to the cost of incomplete paths.
         """
         self.nodes = tuple(nodes)
         self.start_node = start_node
@@ -74,13 +75,13 @@ class Path:
             if self.nodes[-1].x == self.goal_node.x and \
                     self.nodes[-1].y == self.goal_node.y:
                 self.is_complete = True
-                self.cost = self.nodes[-1].cost
                 self.dist_to_goal = 0.0
-            else:
-                # Cost of an incomplete path is the distance to the goal
+            
+            self.cost = self.nodes[-1].cost
+            if not self.is_complete:
+                self.cost += penalty  # Incomplete costs more than complete
                 self.dist_to_goal = self.dist_between_nodes(self.nodes[-1],
                     NodeStamped(self.goal_node))
-                self.cost = self.dist_to_goal  # for bids
         
         # There is no frozendict! Do not modify this!
         self.ts_dict = {node.stamp : node for node in self.nodes}
@@ -99,7 +100,7 @@ class Path:
         return writ
 
     def dist_between_nodes(self, from_node, to_node):
-        """ Compute the Euclidean distance to the goal node. """
+        """ Compute the Euclidean distance between two nodes. """
         dx = from_node.x - to_node.x
         dy = from_node.y - to_node.y
 
@@ -135,6 +136,7 @@ class RRTstar:
         self.curr_iter = 0
         self.node_list = [self.start]
         self.found_complete_path = False
+        self.curr_time = 0
 
         # Planner parameters
         self.goal_dist = goal_dist
@@ -248,7 +250,7 @@ class RRTstar:
         """ Identify the best goal node given the current path. """
         dist_to_goal_ls = [self.dist_to_goal(node) for node in self.node_list]
         goal_ids = [dist_to_goal_ls.index(i) \
-                    for i in dist_to_goal_ls if i <= self.goal_dist]
+                    for i in dist_to_goal_ls if i <= 1.1 * self.goal_dist]
 
         safe_goal_ids = []
         for id in goal_ids:
@@ -296,7 +298,7 @@ class RRTstar:
                 goal node.
         """
         last_id = self.search_best_goal_node()
-        new_path = self.generate_final_path(last_id)
+        new_path = self.generate_final_path(last_id, self.curr_time)
         
         # Get cost of new path starting from current position
         cur_node_id = new_path.nodes.index(self.curr_pos)
@@ -325,14 +327,21 @@ class RRTstar:
         
         return self.best_path
 
-    def generate_final_path(self, id=None):
-        """ Prune the final path once the goal has been found. """
+    def generate_final_path(self, id=None, curr_time=0):
+        """ Prune the final path once the goal has been found.
+        
+            Args:
+                id: an integer representing the index of the node closest
+                    to the goal point. If None, the resultant path is
+                    incomplete
+                start_time: a timestamp representing the starting time for
+                    the path, passed to the time allocation routine
+        """
         node = None
         path_nodes = []
 
         if id:
             # Complete path
-            self.found_complete_path = True
             goal_node = NodeStamped(self.goal)
             goal_node.cost = RRTstar.compute_new_cost(
                 self.node_list[id], self.goal)
@@ -348,35 +357,48 @@ class RRTstar:
             node_stamped = NodeStamped(node)
             path_nodes.append(node_stamped)
             node = node.parent
-        
+
+        path_nodes.append(NodeStamped(node))
         path_nodes.reverse()
 
         # Weird edge case where nodes are empty when close to goal
         if not path_nodes:
             return self.best_path
 
-        # Add the path already traveled:
+        # Allocate time to this part of the path
+        path_nodes = self.allocate_time(path_nodes, curr_time)
+
+        # Add the path already traveled
         if self.nodes_traveled:
             path_parent = self.nodes_traveled[-1]
             path_nodes[0].parent = path_parent
             for node in path_nodes:
                 node.cost += path_parent.cost
-            path_nodes = [NodeStamped(node) for node in self.nodes_traveled] \
-                + path_nodes
 
-        path_nodes = self.allocate_time(path_nodes)
+            nodes_traveled_stamped = [
+                    NodeStamped(node) for node in self.nodes_traveled]
+            for node in nodes_traveled_stamped:
+                node.stamp = 0  # Traveled nodes all have zero ts
+            
+            path_nodes = nodes_traveled_stamped + path_nodes
 
         path = Path(path_nodes,
                     NodeStamped(self.start),
-                    NodeStamped(self.goal))
+                    NodeStamped(self.goal),
+                    2.0 * max(self.env.bounds))
         return path
 
-    def allocate_time(self, nodes):
-        """ Attribute timestamps to each node in the nodes list. """
+    def allocate_time(self, nodes, start_time):
+        """ Attribute timestamps to each node in the nodes list.
+
+            Args:
+                nodes: a list of NodeStamped objects
+                start_time: the start time for the first node in the list
+        """
         
         def naive_alloc():
             """ Simply increment each stamp by one integer. """
-            count = 0
+            count = start_time
             for node in nodes:
                 node.stamp = count
                 count += 1
@@ -432,7 +454,7 @@ class RRTstar:
 
         return d, theta
     
-    def update_pos(self, pos, wipe_tree=True):
+    def update_pos(self, pos, curr_time, wipe_tree=True):
         """ Store self agent current position for new tree generation.
 
             Note that this will wipe the existing tree, including the 
@@ -444,9 +466,12 @@ class RRTstar:
 
             Args:
                 pos: a 2-tuple representing the x-y coordinates of the agent
-                running the RRT algorithm.
+                    running the RRT algorithm.
+                curr_time: a time representing the current time of the sim.
+                wipe_tree: a boolean; if True, the RRT tree will be reset.
         """
         new_pos = Node(pos[0], pos[1])
+        self.curr_time = curr_time
         if new_pos != self.curr_pos:
             new_pos.cost = RRTstar.compute_new_cost(self.nodes_traveled[-1],
                                                     new_pos)

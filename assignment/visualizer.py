@@ -2,10 +2,8 @@ from matplotlib import pyplot as plt
 from IPython.display import clear_output
 from shapely.geometry import Point, Polygon, LineString
 
-from solutions.rrtstar import RRTstar
-
-from utils.environment import Environment, plot_environment, plot_line, \
-    plot_poly
+from rrtstar import RRTstar
+from environment import Environment, plot_environment, plot_line, plot_poly
 
 class Visualizer:
     def __init__(self, env):

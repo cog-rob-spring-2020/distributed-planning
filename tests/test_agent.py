@@ -1,8 +1,9 @@
-from solutions.agent import Agent
 from shapely.geometry import Point
 from shapely.geometry import Polygon
-from utils.environment import Environment
-from solutions.rrtstar import Path
+
+from agent import Agent
+from rrtstar import Path
+from environment import Environment
 
 def test_at_goal():
     print("testing test_at_goal...\n")

@@ -1,9 +1,10 @@
-from solutions.agent import Agent
 from shapely.geometry import Point
 from shapely.geometry import Polygon
-from utils.environment import Environment
-from solutions.rrtstar import Path
-from solutions.plan import Plan, dma_individual, compute_winner, bid
+
+from agent import Agent
+from rrtstar import Path
+from plan import Plan
+from environment import Environment
 
 def test_random_token_holder():
     print("testing test_random_token_holder...\n")
@@ -28,7 +29,7 @@ def test_random_token_holder():
 
     plan = Plan(agents = [agent1, agent2],
                 env = environment,
-                dma_indiv = dma_individual,
+                dma_indiv = sol_dma_individual,
                 dma_coop = None,
                 spin_rate = 10  # Hz
                 )
@@ -61,7 +62,7 @@ def test_agents_aware_of_peers():
 
     plan = Plan(agents = [agent1, agent2],
                 env = environment,
-                dma_indiv = dma_individual,
+                dma_indiv = sol_dma_individual,
                 dma_coop = None,
                 spin_rate = 10  # Hz
                 )
@@ -103,11 +104,11 @@ def test_compute_winner():
     agent2.broadcast_bid(0)
     agent3.broadcast_bid(100)
 
-    assert compute_winner(agent1) == agent3.antenna.uuid
-    assert compute_winner(agent2) == agent3.antenna.uuid
+    assert sol_compute_winner(agent1) == agent3.antenna.uuid
+    assert sol_compute_winner(agent2) == agent3.antenna.uuid
 
     # since agent 3 wouldn't keep track of its own bid
-    assert compute_winner(agent3) == agent2.antenna.uuid
+    assert sol_compute_winner(agent3) == agent2.antenna.uuid
 
 def test_bid():
     print("testing test_bid...\n")
@@ -132,10 +133,10 @@ def test_bid():
 
     agent1.curr_plan.cost = 10
     agent1.best_plan.cost = 100
-    bid(agent1)
+    sol_bid(agent1)
     assert agent2.bids[agent1.antenna.uuid] == 90
 
     agent1.curr_plan.cost = 50
     agent1.best_plan.cost = 0
-    bid(agent1)
+    sol_bid(agent1)
     assert agent2.bids[agent1.antenna.uuid] == 50

@@ -1,5 +1,5 @@
 from agent import Agent
-from rrtstar import Path
+from rrtstar import Path, NodeStamped, Node
 from environment import Environment
 
 def test_antenna_callback_bids(received_bid, received_waypoints):
@@ -61,9 +61,14 @@ def test_antenna_callback_waypoints(received_bid, received_waypoints):
     assert not agent1.token_holder
     assert not agent2.token_holder
 
-    agent1.curr_plan = Path()
+    start = NodeStamped(Node(1, 2))
+    end = NodeStamped(Node(2, 3))
+
+    agent1.curr_plan = Path(nodes = [start, end],
+                            start_node = start,
+                            goal_node = end)
     agent1.broadcast_waypoints(agent2.antenna.uuid)
 
-    assert not agent2.other_agent_plans[agent1.antenna.uuid].nodes
+    assert agent2.other_agent_plans[agent1.antenna.uuid].nodes == (start, end)
     assert agent2.token_holder
     assert not agent1.token_holder

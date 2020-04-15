@@ -2,7 +2,7 @@ from shapely.geometry import Point
 from shapely.geometry import Polygon
 
 from agent import Agent
-from rrtstar import Path
+from rrtstar import Path, NodeStamped, Node
 from environment import Environment
 
 def test_at_goal():
@@ -55,27 +55,37 @@ def test_antenna_callback_waypoints():
     environment = Environment(yaml_file="utils/simple.yaml")
 
     agent1 = Agent(mode = "normal",
+                   received_bid = received_bid,
+                   received_waypoints = received_waypoints,
                    start_pos = (0, 0),
                    goal_pos = (10.5, 5.5),
                    environment = environment,
                    goal_dist = 0.3,
                    rrt_iters = 200)
     agent2 = Agent(mode = "normal",
+                   received_bid = received_bid,
+                   received_waypoints = received_waypoints,
                    start_pos = (2, 3),
                    goal_pos = (0, 4),
                    environment = environment,
                    goal_dist = 0.3,
                    rrt_iters = 200)
 
+    agent1.broadcast_id()
+    agent2.broadcast_id()
+
     assert not agent1.token_holder
     assert not agent2.token_holder
 
-    # agent1.antenna.broadcast("waypoints", {"topic":"waypoints", "plan":[], "winner_id":agent2.antenna.uuid})
-    agent1.curr_plan = Path()
+    start = NodeStamped(Node(1, 2))
+    end = NodeStamped(Node(2, 3))
+
+    agent1.curr_plan = Path(nodes = [start, end],
+                            start_node = start,
+                            goal_node = end)
     agent1.broadcast_waypoints(agent2.antenna.uuid)
 
-    # assert agent1.other_agent_plans[agent1.antenna.uuid] == []
-    assert not agent2.other_agent_plans[agent1.antenna.uuid].nodes
+    assert agent2.other_agent_plans[agent1.antenna.uuid].nodes == (start, end)
     assert agent2.token_holder
     assert not agent1.token_holder
 

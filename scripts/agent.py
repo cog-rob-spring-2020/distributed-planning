@@ -1,31 +1,20 @@
 import time
 import numpy as np
+import rospy
 from shapely.geometry import Point
 
 from rrtstar import Node, NodeStamped, RRTstar, Path
-from antenna import Antenna, TOPIC_BIDS, TOPIC_WAYPOINTS, TOPIC_PEERS
 
 
 class Agent:
-    def __init__(self,
-                 mode,
-                 received_bid,
-                 received_waypoints,
-                 start_pos,
-                 goal_pos,
-                 environment,
-                 goal_dist,
-                 rrt_iters):
+    def __init__(self, identifier, mode, start_pos, goal_pos, environment, goal_dist, rrt_iters, peer_pub, bid_pub, waypoints_pub):
         """ Initializer for Agent class; represents a robot capable of planning
             and moving in an environment.
 
             Args:
                 mode: a string: "normal" or "cooperative" indicates whether to use
                     DMA-RRT or Cooperative DMA-RRT (respectively).
-                received_bid: a method representing the callback for bid
-                    messages passed over the network.
-                received_waypoints: a method representing the callback for the
-                    waypoints and winner_id messages passed over the network.
+                identifier: string representing the unique name of this agent
                 start_pos: a 2-tuple representing the starting x-y position.
                 goal_pos: a 2-tuple representing the goal x-y position.
                 environment: an Environment object representing the map in which
@@ -35,11 +24,7 @@ class Agent:
                 rrt_iters: the number of iterations to run for RRT at each
                     spin_once.
         """
-        self.antenna = Antenna()
-
-        # Assign interaction callbacks for messages
-        Agent.received_bid = received_bid
-        Agent.received_waypoints = received_waypoints
+        self.identifier = identifier
 
         self.curr_time = 0.0  # Simulation time. Updated externally
 
@@ -68,24 +53,15 @@ class Agent:
         self.curr_plan = Path()
         self.best_plan = Path()
 
-        # Register as listener for different kinds of messages
-        self.antenna.on_message("peers", self.received_id)
-        self.antenna.on_message("bids", self.received_bid)
-        self.antenna.on_message("waypoints", self.received_waypoints)
-
     """ The following methods represent the interaction component of DMA-RRT
         as described in algorithms 5 and 8.
     """
     ##########################################################################
 
-    def broadcast_id(self):
-        msg = {"topic": TOPIC_PEERS}
-        self.antenna.broadcast(TOPIC_PEERS, msg)
-
-    def received_id(self, sender_id, msg):
-        if sender_id != self.antenna.uuid:
-            self.bids[sender_id] = 0.0
-            self.other_agent_plans[sender_id] = Path()
+    def received_id(self, data):
+        if data.sender_id != self.identifier:
+            self.bids[data.sender_id] = 0.0
+            self.other_agent_plans[data.sender_id] = Path()
 
     def broadcast_bid(self, bid):
         msg = {"topic": TOPIC_BIDS, "bid": bid}
@@ -97,12 +73,36 @@ class Agent:
         self.antenna.broadcast(TOPIC_WAYPOINTS, msg)
 
     def received_bid(self, sender_id, msg):
-        """ Callback for messages over the network. """
-        raise NotImplementedError
+        """
+        If the agent is not the one who sent the message, updates
+        its `bids` dictionary to reflect the bid of the agent who did
+        send the message.
+        sender_id - the id of the agent who sent the message
+        msg - a dictionary containing the PPI bid of the agent who
+        sent the message under the key "bid"
+        """
+        if sender_id != self.identifier:
+            bidder = sender_id
+            self.bids[bidder] = msg["bid"]
 
     def received_waypoints(self, sender_id, msg):
-        """ Callback for messages over the network. """
-        raise NotImplementedError
+        """
+        If the agent is the winner, updates its state to become the
+        token holder.
+        If the agent is not the one who sent the message, also updates its
+        `other_agent_plans` dictionary to reflect the updated plan of the
+        agent who did send the message.
+        sender_id - the id of the agent who sent the message
+        msg - a dictionary containing the id of the winning agent under
+        the key "winner_id", as well as the updated plan of the agent who
+        sent the message under the key "plan"
+        """
+        winner_id = msg["winner_id"]
+        if winner_id == self.identifier:
+            self.token_holder = True
+        if sender_id != self.identifier:
+            other_plan = msg["plan"]
+            self.other_agent_plans[sender_id] = other_plan
 
     ##########################################################################
 
@@ -117,18 +117,6 @@ class Agent:
     def update_time(self, curr_time):
         """ Update the internal time counter. """
         self.curr_time = curr_time
-
-    def spin(self, rate):
-        """ Runs the agent's individual component on a timer until it is
-            sufficiently close to the goal.
-
-            Args:
-                rate: float representing the rate for the spin, in Hz.
-        """
-        # go until agent has reached its goal state
-        while not self.at_goal():
-            self.spin_once()
-            time.sleep(1.0 / rate)
 
     def spin_once(self):
         """ Runs the agent's individual DMA-RRT component once.
@@ -145,11 +133,3 @@ class Agent:
             elif self.curr_time > self.curr_plan.nodes[-1].stamp:
                 self.pos = (self.curr_plan.nodes[-1].x,
                             self.curr_plan.nodes[-1].y)
-
-
-def test_received_bid(self, sender_id, msg):
-    pass
-
-
-def test_received_waypoints(self, sender_id, msg):
-    pass

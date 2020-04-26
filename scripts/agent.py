@@ -7,7 +7,19 @@ from rrtstar import Node, NodeStamped, RRTstar, Path
 
 
 class Agent:
-    def __init__(self, identifier, mode, start_pos, goal_pos, environment, goal_dist, rrt_iters, peer_pub, bid_pub, waypoints_pub):
+    def __init__(
+        self,
+        identifier,
+        mode,
+        start_pos,
+        goal_pos,
+        environment,
+        goal_dist,
+        rrt_iters,
+        peer_pub,
+        bid_pub,
+        waypoints_pub,
+    ):
         """ Initializer for Agent class; represents a robot capable of planning
             and moving in an environment.
 
@@ -25,7 +37,11 @@ class Agent:
                     spin_once.
         """
         self.identifier = identifier
+        self.peer_pub = peer_pub
+        self.bid_pub = bid_pub
+        self.waypoints_pub = waypoints_pub
 
+        # TODO: how should this be updated?
         self.curr_time = 0.0  # Simulation time. Updated externally
 
         self.mode = mode
@@ -45,8 +61,9 @@ class Agent:
         self.pos = self.start
         self.environment = environment
 
-        self.rrt = RRTstar(self.start, self.goal, self.environment, goal_dist,
-                           max_iter=rrt_iters)
+        self.rrt = RRTstar(
+            self.start, self.goal, self.environment, goal_dist, max_iter=rrt_iters
+        )
         self.goal_dist = goal_dist
         # curr_plan is the currently executing plan; best_plan is a lower-cost path
         #     than curr_plan, if one exists. The cost difference is the bid!
@@ -68,8 +85,7 @@ class Agent:
         self.antenna.broadcast(TOPIC_BIDS, msg)
 
     def broadcast_waypoints(self, winner_id):
-        msg = {"topic": TOPIC_WAYPOINTS,
-               "plan": self.curr_plan, "winner_id": winner_id}
+        msg = {"topic": TOPIC_WAYPOINTS, "plan": self.curr_plan, "winner_id": winner_id}
         self.antenna.broadcast(TOPIC_WAYPOINTS, msg)
 
     def received_bid(self, sender_id, msg):
@@ -97,6 +113,9 @@ class Agent:
         the key "winner_id", as well as the updated plan of the agent who
         sent the message under the key "plan"
         """
+
+        # TODO: add a check for having all the bids
+
         winner_id = msg["winner_id"]
         if winner_id == self.identifier:
             self.token_holder = True
@@ -104,12 +123,16 @@ class Agent:
             other_plan = msg["plan"]
             self.other_agent_plans[sender_id] = other_plan
 
+        # TODO: clear the bids too?
+        # self.bids = dict()
+
     ##########################################################################
 
     def at_goal(self):
         """ Checks if the agent's current location is the goal location. """
-        dist = np.sqrt((self.pos[0]-self.goal[0])**2 +
-                       (self.pos[1]-self.goal[1])**2)
+        dist = np.sqrt(
+            (self.pos[0] - self.goal[0]) ** 2 + (self.pos[1] - self.goal[1]) ** 2
+        )
         if dist <= 0.3:
             return True
         return False
@@ -125,11 +148,15 @@ class Agent:
         """
         # Move agent if we have reached the next node
         if self.curr_plan.nodes:
+            # TODO: maybe round the time?
             if self.curr_time in self.curr_plan.ts_dict.keys():
-                self.pos = (self.curr_plan.ts_dict[self.curr_time].x,
-                            self.curr_plan.ts_dict[self.curr_time].y)
+                self.pos = (
+                    self.curr_plan.ts_dict[self.curr_time].x,
+                    self.curr_plan.ts_dict[self.curr_time].y,
+                )
 
             # curr_time may have moved on past the plans timestamps
             elif self.curr_time > self.curr_plan.nodes[-1].stamp:
-                self.pos = (self.curr_plan.nodes[-1].x,
-                            self.curr_plan.nodes[-1].y)
+                self.pos = (self.curr_plan.nodes[-1].x, self.curr_plan.nodes[-1].y)
+
+        # TODO: broadcast bid

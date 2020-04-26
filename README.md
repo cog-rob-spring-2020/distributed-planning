@@ -15,6 +15,8 @@ See [instructions](https://docs.google.com/document/d/1oX_eJmV-vMKZSr4hDh7DyUTJE
 #### Dependencies
 
 * [ROS Kinetic](http://wiki.ros.org/kinetic) on [Ubuntu 16.04](http://releases.ubuntu.com/16.04/)
+* Python 2.7, which should be installed as `python` by default on Ubuntu 16.04
+  * The class VM already has `numpy` and `matplotlib` installed
 
 ### Installation
 
@@ -32,6 +34,3 @@ See [instructions](https://docs.google.com/document/d/1oX_eJmV-vMKZSr4hDh7DyUTJE
 ```sh
 rosrun distributed-planning main ./environment.yaml
 ```
-
-TODO
-* Add agent starting positions to environment.yaml?

@@ -8,13 +8,11 @@ from rrtstar import Node, NodeStamped, RRTstar, Path
 
 
 class Agent:
-    def __init__(self, mode, start_pos, goal_pos, environment, goal_dist, rrt_iters):
+    def __init__(self, start_pos, goal_pos, environment, goal_dist, rrt_iters):
         """
         Initializer for Agent class; represents a robot capable of
         planning and moving in an environment.
 
-        mode - a string: "normal" or "cooperative" indicates whether to
-            use DMA-RRT or Cooperative DMA-RRT (respectively).
         start_pos - a 2-tuple representing the starting x-y position.
         goal_pos - a 2-tuple representing the goal x-y position.
         environment - an Environment object representing the map in
@@ -24,29 +22,6 @@ class Agent:
         rrt_iters - the number of iterations to run for RRT at each
             spin_once.
         """
-        self.identifier = rospy.get_name()
-        self.peer_pub = rospy.Publisher("peers", PlanBid, queue_size=10)
-        self.bid_pub = rospy.Publisher("plan_bids", PlanBid, queue_size=10)
-        self.waypoints_pub = rospy.Publisher("waypoints", Waypoints, queue_size=10)
-
-        # Register as listener for different kinds of messages
-        rospy.Subscriber("registration", Registration, self.received_id)
-        rospy.Subscriber("plan_bids", PlanBid, self.received_bid)
-        rospy.Subscriber("waypoints", Waypoints, self.received_waypoints)
-
-        # let the other agents know a new agent is on the network
-        registration_pub = rospy.Publisher("registration", Registration)
-        registration_pub.publish(rospy.get_name())
-
-        # TODO: how should this be updated?
-        self.curr_time = 0.0  # Simulation time. Updated externally
-
-        self.mode = mode
-        self.token_holder = False
-
-        # Keeps track of other agents' current bids for PPI
-        #     (potential path improvement) at any given time:
-        self.bids = dict()
 
         # Keeps track of other agents' plans so that we can
         #   add the other agents as obstacles when replanning:
@@ -68,76 +43,6 @@ class Agent:
         self.curr_plan = Path()
         self.best_plan = Path()
 
-        # TODO: new attributes needed for new pseudocode
-        # (fix these and place them in positions that make sense)
-        self.replan_token_holder = False
-        self.goal_token_holder = False
-        self.replan_bids = dict()
-        self.goal_bids = dict()
-        self.queue = []
-
-    ####################################################################
-
-    ### TODO: REPLACE with below ###
-    def broadcast_bid(self, bid):
-        msg = {"topic": TOPIC_BIDS, "bid": bid}
-        self.antenna.broadcast(TOPIC_BIDS, msg)
-
-    ### TODO: REPLACE with below ###
-    def broadcast_waypoints(self, winner_id):
-        msg = {"topic": TOPIC_WAYPOINTS, "plan": self.curr_plan, "winner_id": winner_id}
-        self.antenna.broadcast(TOPIC_WAYPOINTS, msg)
-
-    ### TODO: REPLACING broadcast_waypoints ###
-    def broadcast_waypoints_and_replan_winner(self, winner_id):
-        """
-        Broadcasts the following message to the TODO topic:
-
-        msg - message of type TODO (blend of Waypoints/TokenHolder)
-        msg.sender_id - this agent's unique ID
-        msg.winner_id - unique ID of the agent who has won the
-         replanning token, given by `winner_id`
-        msg.locations - path of waypoints representing this agent's
-         current plan being executed
-        """
-        pass
-
-    def broadcast_remove_goal_and_goal_winner(self, winner_id):
-        """
-        Broadcasts the following message to the TODO topic:
-
-        msg - message of type TODO (GoalWinner?)
-        msg.sender_id - this agent's unique ID
-        msg.winner_id - unique ID of the agent who has won the goal
-         claiming token, given by `winner_id`
-        msg.goal_id - location of goal just claimed by this agent (so
-         all others can remove from their queues)
-        """
-        pass
-
-    ### TODO: REPLACING broadcast_bid ###
-    def broadcast_replan_bid(self, bid):
-        """
-        Broadcasts the following message to the TODO topic:
-
-        msg - message of type PlanBid
-        msg.sender_id - this agent's unique ID
-        msg.bid - this agent's PPI, given by `bid`
-        """
-        pass
-
-    ### TODO: REPLACING broadcast_bid ###
-    def broadcast_goal_bid(self, bid, bid_goal):
-        """
-        Broadcasts the following message to the TODO topic:
-
-        msg - message of type TODO (GoalBid?)
-        msg.sender_id - this agent's unique ID
-        msg.bid - agent's bid (reward - cost to get to goal) for current favorite goal in queue, given by `bid`
-        msg.goal_id - location of the goal this agent is bidding on, given by `bid_goal`
-        """
-        pass
-
     ####################################################################
 
     """
@@ -145,103 +50,6 @@ class Agent:
     - make sure these messages are actually getting sent at some point after the whole team has been initialized to populate all the agents' dictionaries
     - update to reflect new fields
     """
-
-    def received_id(self, msg):
-        """
-        TODO
-        """
-        if msg.sender_id != self.identifier:
-            self.bids[msg.sender_id] = 0.0
-            self.other_agent_plans[msg.sender_id] = Path()
-
-    ### TODO: REPLACE with below ###
-    def received_bid(self, sender_id, msg):
-        """
-        If the agent is not the one who sent the message, updates
-        its `bids` dictionary to reflect the bid of the agent who did
-        send the message.
-        sender_id - the id of the agent who sent the message
-        msg - a dictionary containing the PPI bid of the agent who
-        sent the message under the key "bid"
-        """
-        if sender_id != self.identifier:
-            bidder = sender_id
-            self.bids[bidder] = msg["bid"]
-
-    ### TODO: REPLACE with below ###
-    def received_waypoints(self, sender_id, msg):
-        """
-        If the agent is the winner, updates its state to become the
-        token holder.
-        If the agent is not the one who sent the message, also updates its
-        `other_agent_plans` dictionary to reflect the updated plan of the
-        agent who did send the message.
-        sender_id - the id of the agent who sent the message
-        msg - a dictionary containing the id of the winning agent under
-        the key "winner_id", as well as the updated plan of the agent who
-        sent the message under the key "plan"
-        """
-
-        # TODO: add a check for having all the bids
-
-        winner_id = msg["winner_id"]
-        if winner_id == self.identifier:
-            self.token_holder = True
-        if sender_id != self.identifier:
-            other_plan = msg["plan"]
-            self.other_agent_plans[sender_id] = other_plan
-
-        # TODO: clear the bids too?
-        # self.bids = dict()
-
-    ### TODO: REPLACING current received_waypoints ###
-    def received_waypoints_and_replan_winner(self, msg):
-        """
-        Update internal state to reflect constraints based on
-        other agent's new planned path.
-
-        Also, if winner, update internal state to hold the token.
-
-        msg - message of type TODO (blend of Waypoints/TokenHolder)
-        msg.sender_id - unique ID of the agent who sent the message
-        msg.winner_id - unique ID of the agent who has won the replanning token
-        msg.locations - path of waypoints
-        """
-        if msg.sender_id != self.identifier:
-            self.other_agent_plans[msg.sender_id] = msg.locations
-
-        if msg.winner_id == self.identifier:
-            self.replan_token_holder = True
-
-    def received_remove_goal_and_goal_winner(self, msg):
-        """
-        If winner, update internal state to hold the token.
-
-        Remove the goal that the previous winner claimed from queue.
-
-        msg - message of type TODO (GoalWinner?)
-        msg.sender_id - unique ID of the agent who sent the message
-        msg.winner_id - unique ID of the agent who has won the goal claiming token
-        msg.goal_id - location of goal claimed by previous winner
-        """
-        if msg.winner_id == self.identifier:
-            self.goal_token_holder = True
-
-        if msg.sender_id != self.identifier:
-            self.queue_remove(msg.goal_id)
-
-    ### TODO: REPLACING received_bid ###
-    def received_replan_bid(self, msg):
-        """
-        Update internal state to reflect other agent's PPI bid.
-
-        msg - message of type PlanBid
-        msg.sender_id - unique ID of the agent who sent the message
-        msg.bid - agent's PPI (potential path improvement) for current
-        planning iteration
-        """
-        if msg.sender_id != self.identifier:
-            self.replan_bids[msg.sender_id] = msg.bid
 
     ### TODO: REPLACING received_bid ###
     def received_goal_bid(self, msg):
@@ -394,32 +202,3 @@ class Agent:
         The interaction component is handled using Agent callbacks.
         """
         self.dma_individual()
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        program="agent", description="Run an agent ROS node."
-    )
-    parser.add_argument("lunar_env", nargs=1)
-
-    try:
-        args = parser.parse_args()
-        print args
-
-        mode = "normal"
-        start_pos = (0.0, 0.0)
-        goal_pos = (10.0, 10.0)
-        lunar_env = Environment()
-        lunar_env.load_from_yaml_file(args.lunar_env)
-        goal_dist = 0.1
-        rrt_iters = 10
-
-        rospy.init_node("agent", anonymous=True)
-        agent = Agent(mode, start_pos, goal_pos, lunar_env, goal_dist, rrt_iters)
-
-        rate = rospy.Rate(10)
-        while not rospy.is_shutdown():
-            agent.spin_once()
-            rate.sleep()
-    except:
-        parser.print_help()

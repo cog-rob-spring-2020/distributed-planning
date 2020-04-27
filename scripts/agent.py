@@ -70,15 +70,14 @@ class Agent:
         self.curr_plan = Path()
         self.best_plan = Path()
 
-    """ The following methods represent the interaction component of DMA-RRT
-        as described in algorithms 5 and 8.
-    """
-    ##########################################################################
+        # TODO: new attributes needed for new pseudocode
+        self.replan_token_holder = False
+        self.goal_token_holder = False
+        self.replan_bids = dict()
+        self.goal_bids = dict()
+        self.queue = []
 
-    def received_id(self, data):
-        if data.sender_id != self.identifier:
-            self.bids[data.sender_id] = 0.0
-            self.other_agent_plans[data.sender_id] = Path()
+    ##########################################################################
 
     def broadcast_bid(self, bid):
         msg = {"topic": TOPIC_BIDS, "bid": bid}
@@ -87,6 +86,13 @@ class Agent:
     def broadcast_waypoints(self, winner_id):
         msg = {"topic": TOPIC_WAYPOINTS, "plan": self.curr_plan, "winner_id": winner_id}
         self.antenna.broadcast(TOPIC_WAYPOINTS, msg)
+
+    ##########################################################################
+
+    def received_id(self, data):
+        if data.sender_id != self.identifier:
+            self.bids[data.sender_id] = 0.0
+            self.other_agent_plans[data.sender_id] = Path()
 
     def received_bid(self, sender_id, msg):
         """
@@ -125,6 +131,102 @@ class Agent:
 
         # TODO: clear the bids too?
         # self.bids = dict()
+
+    ### REPLACING current received_waypoints (remove `2`): ###
+    def received_waypoints2(self, msg):
+        '''
+        Update internal state to reflect constraints based on
+        other agent's new planned path.
+
+        msg - message of type Waypoints
+        msg.sender_id - unique ID of the agent who sent the message
+        msg.locations - path of waypoints
+        '''
+        if msg.sender_id != self.identifier:
+            self.other_agent_plans[msg.sender_id] = msg.locations
+
+    ### REPLACING winner functionality from received_waypoints: ###
+    def received_replan_winner(self, msg):
+        '''
+        If winner, update internal state to hold the token.
+
+        msg - message of type TokenHolder (TODO: rename to ReplanWinner?)
+        msg.sender_id - unique ID of the agent who sent the message
+        msg.holder_id - unique ID of the agent who has won the replanning token
+        '''
+        self.replan_token_holder = True
+
+    def received_goal_winner(self, msg):
+        '''
+        If winner, update internal state to hold the token.
+
+        msg - message of type TODO (GoalWinner?)
+        msg.sender_id - unique ID of the agent who sent the message
+        msg.holder_id - unique ID of the agent who has won the goal claiming token
+        '''
+        self.goal_token_holder = True
+
+    ### REPLACING received_bid: ###
+    def received_replan_bid(self, msg):
+        '''
+        Update internal state to reflect other agent's PPI bid.
+
+        msg - message of type PlanBid
+        msg.sender_id - unique ID of the agent who sent the message
+        msg.bid - agent's PPI (potential path improvement) for current
+        planning iteration
+        '''
+        if msg.sender_id != self.identifier:
+            self.replan_bids[msg.sender_id] = msg.bid
+
+    ### REPLACING received_bid: ###
+    def received_goal_bid(self, msg):
+        '''
+        Update internal state to reflect other agent's bid
+        on the first goal in the queue.
+
+        msg - message of type TODO (GoalBid?)
+        msg.sender_id - unique ID of the agent who sent the message
+        msg.bid - agent's bid (reward - cost to get to goal) for current first goal in queue
+        msg.goal_id - location of the goal other agent is bidding on
+        '''
+        if msg.sender_id != self.identifier:
+            self.goal_bids[msg.sender_id] = msg.bid
+
+    def received_add_goal(self, msg):
+        '''
+        Add the new goal to internal representation of goal queue,
+        updating queue to remain sorted by reward.
+
+        msg - message of type TODO (Goal)
+        msg.goal_id - location of the goal to be added
+        msg.reward - reward associated with that goal (e.g. from adaptive sampling)
+        '''
+        self.queue_insert(msg.goal_id, msg.goal_reward)
+
+    def received_remove_goal(self, msg):
+        '''
+        Remove the specified goal from internal representation of goal
+        queue, updating queue to remain sorted by reward.
+
+        msg - message of type TODO (Goal)
+        msg.goal_id - location of the goal to be removed
+        msg.reward - reward associated with that goal (e.g. from adaptive sampling)
+        '''
+        self.queue_remove(msg.goal_id)
+
+    def queue_insert(self, goal, reward):
+        '''
+        Add the goal to the queue attribute, keeping the queue
+        sorted by TODO (reward, priority, etc.)
+        '''
+        pass
+
+    def queue_remove(self, goal):
+        '''
+        Remove the goal from the queue attribute.
+        '''
+        pass
 
     ##########################################################################
 

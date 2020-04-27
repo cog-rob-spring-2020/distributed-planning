@@ -17,6 +17,7 @@ class DMARRTAgent(Agent):
         self.waypoints_pub = rospy.Publisher("waypoints", Waypoints, queue_size=10)
 
         # Register as listener for different kinds of messages
+        # TODO: make sure these work!!!
         rospy.Subscriber("registration", Registration, self.received_id)
         rospy.Subscriber("plan_bids", PlanBid, self.received_bid)
         rospy.Subscriber("waypoints", Waypoints, self.received_waypoints)

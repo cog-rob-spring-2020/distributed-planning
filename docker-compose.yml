@@ -1,0 +1,7 @@
+version: '3'
+services:
+  dmarrt:
+    image: ros:kinetic-ros-core-xenial
+    command: sh -c "roslaunch distributed-planning dma-rrt.launch"
+    volumes:
+      - "./:/root/ros/src/distributed-planning"

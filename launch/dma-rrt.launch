@@ -1,6 +1,6 @@
 <launch>
 
-  <node pkg="distributed-planning" type="agent" name="agent"
+  <node pkg="distributed-planning" type="agent-dmarrt" name="agent"
   args="$(find distributed-planning)/data/$(arg lunar_env)" />
 
 </launch>

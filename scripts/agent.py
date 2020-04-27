@@ -1,3 +1,4 @@
+import argparse
 import time
 import numpy as np
 import rospy
@@ -7,26 +8,13 @@ from rrtstar import Node, NodeStamped, RRTstar, Path
 
 
 class Agent:
-    def __init__(
-        self,
-        identifier,
-        mode,
-        start_pos,
-        goal_pos,
-        environment,
-        goal_dist,
-        rrt_iters,
-        peer_pub,
-        bid_pub,
-        waypoints_pub,
-    ):
+    def __init__(self, mode, start_pos, goal_pos, environment, goal_dist, rrt_iters):
         """
         Initializer for Agent class; represents a robot capable of
         planning and moving in an environment.
 
         mode - a string: "normal" or "cooperative" indicates whether to
             use DMA-RRT or Cooperative DMA-RRT (respectively).
-        identifier - string representing the unique name of this agent
         start_pos - a 2-tuple representing the starting x-y position.
         goal_pos - a 2-tuple representing the goal x-y position.
         environment - an Environment object representing the map in
@@ -36,10 +24,19 @@ class Agent:
         rrt_iters - the number of iterations to run for RRT at each
             spin_once.
         """
-        self.identifier = identifier
-        self.peer_pub = peer_pub
-        self.bid_pub = bid_pub
-        self.waypoints_pub = waypoints_pub
+        self.identifier = rospy.get_name()
+        self.peer_pub = rospy.Publisher("peers", PlanBid, queue_size=10)
+        self.bid_pub = rospy.Publisher("plan_bids", PlanBid, queue_size=10)
+        self.waypoints_pub = rospy.Publisher("waypoints", Waypoints, queue_size=10)
+
+        # Register as listener for different kinds of messages
+        rospy.Subscriber("registration", Registration, self.received_id)
+        rospy.Subscriber("plan_bids", PlanBid, self.received_bid)
+        rospy.Subscriber("waypoints", Waypoints, self.received_waypoints)
+
+        # let the other agents know a new agent is on the network
+        registration_pub = rospy.Publisher("registration", Registration)
+        registration_pub.publish(rospy.get_name())
 
         # TODO: how should this be updated?
         self.curr_time = 0.0  # Simulation time. Updated externally
@@ -148,6 +145,7 @@ class Agent:
     - make sure these messages are actually getting sent at some point after the whole team has been initialized to populate all the agents' dictionaries
     - update to reflect new fields
     """
+
     def received_id(self, msg):
         """
         TODO
@@ -362,15 +360,15 @@ class Agent:
             self.curr_plan = self.best_plan
 
             # Solve collisions with time reallocation
-            self.curr_plan = Plan.multiagent_aware_time_realloc(self.curr_plan,
-                    self.other_agent_plans)
+            self.curr_plan = Plan.multiagent_aware_time_realloc(
+                self.curr_plan, self.other_agent_plans
+            )
 
             # Broadcast the new winner of the bidding round
             if self.bids:
                 self.token_holder = False
                 winner_bid = max(self.bids.values())
-                winner_ids = [id for id, bid in self.bids.items() \
-                    if bid == winner_bid]
+                winner_ids = [id for id, bid in self.bids.items() if bid == winner_bid]
                 winner_id = random.choice(winner_ids)
                 self.broadcast_waypoints(winner_id)
         else:
@@ -396,3 +394,32 @@ class Agent:
         The interaction component is handled using Agent callbacks.
         """
         self.dma_individual()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        program="agent", description="Run an agent ROS node."
+    )
+    parser.add_argument("lunar_env", nargs=1)
+
+    try:
+        args = parser.parse_args()
+        print args
+
+        mode = "normal"
+        start_pos = (0.0, 0.0)
+        goal_pos = (10.0, 10.0)
+        lunar_env = Environment()
+        lunar_env.load_from_yaml_file(args.lunar_env)
+        goal_dist = 0.1
+        rrt_iters = 10
+
+        rospy.init_node("agent", anonymous=True)
+        agent = Agent(mode, start_pos, goal_pos, lunar_env, goal_dist, rrt_iters)
+
+        rate = rospy.Rate(10)
+        while not rospy.is_shutdown():
+            agent.spin_once()
+            rate.sleep()
+    except:
+        parser.print_help()

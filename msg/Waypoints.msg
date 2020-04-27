@@ -1,3 +1,3 @@
 Header header
 string sender_id
-Location[] locations
+geometry_msgs/Point[] locations

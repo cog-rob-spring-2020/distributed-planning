@@ -31,6 +31,16 @@ See [instructions](https://docs.google.com/document/d/1oX_eJmV-vMKZSr4hDh7DyUTJE
 
 ### Running
 
+We recommend using `roslaunch`. For example:
+
+```sh
+roslaunch distributed-planning dma-rrt.launch lunar_env:=env_simple.yaml
+```
+
+`lunar_env` refers to a file defining the physical obstacles in the lunar environment and can be any file in `data/`. (Why `lunar_env`? The word "envrionment" by itself is already overloaded in the context of running command line programs.)
+
+To run an individual node, you would run:
+
 ```sh
 rosrun distributed-planning main ./environment.yaml
 ```

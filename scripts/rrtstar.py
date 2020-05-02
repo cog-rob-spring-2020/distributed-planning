@@ -419,7 +419,6 @@ class RRTstar:
     def get_rand_node(self):
         """ Return a random Node object within the prescribed confines. """
         if random.randint(0, 100) > self.goal_sample_rate:
-            rospy.logdebug("env bounds: %s", self.env.bounds)
             node = Node(random.uniform(self.env.bounds[0], self.env.bounds[2]),
                         random.uniform(self.env.bounds[1], self.env.bounds[3]))
 

@@ -155,13 +155,15 @@ if __name__ == "__main__":
     goal_pos = (10.0, 10.0)
 
     lunar_env = Environment()
-    rospy.logwarn("The environment has %s obstacles", len(lunar_env.obstacles))
     lunar_env.parse_yaml_data(yaml.safe_load(env_file))
 
     goal_dist = 0.1
     rrt_iters = 10
 
-    rospy.init_node("agent", anonymous=True)
+    rospy.init_node("agent", anonymous=True, log_level=rospy.DEBUG)
+
+    rospy.logdebug("The environment has %s obstacles", len(lunar_env.obstacles))
+
     # TODO: pass a callback to get the current time?
     agent = DMARRTAgent(start_pos, goal_pos, lunar_env, goal_dist, rrt_iters)
 

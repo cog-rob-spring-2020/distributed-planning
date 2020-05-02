@@ -146,16 +146,14 @@ class DMARRTAgent(Agent):
 
 
 if __name__ == "__main__":
-    lunar_env = rospy.get_param("/lunar_env")
+    env_file = rospy.get_param("/env_file")
     has_token = rospy.get_param("~has_token", False)
-
-    rospy.loginfo(lunar_env, has_token)
 
     mode = "normal"
     start_pos = (0.0, 0.0)
     goal_pos = (10.0, 10.0)
     lunar_env = Environment()
-    lunar_env.parse_yaml_data(lunar_env)
+    lunar_env.parse_yaml_data(env_file)
     goal_dist = 0.1
     rrt_iters = 10
 

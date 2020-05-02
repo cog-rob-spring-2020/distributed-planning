@@ -1,6 +1,6 @@
 <launch>
 
-  <param name="lunar_env" textfile="$(find distributed_planning)/data/$(arg lunar_env)" />
+  <param name="env_file" textfile="$(find distributed_planning)/data/$(arg lunar_env)" />
 
   <node pkg="distributed_planning" type="agent_dmarrt.py" name="$(anon agent-1)" />
   <node pkg="distributed_planning" type="agent_dmarrt.py" name="$(anon agent-2)" />

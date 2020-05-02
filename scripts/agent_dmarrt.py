@@ -156,7 +156,7 @@ if __name__ == "__main__":
     start_pos = (0.0, 0.0)
     goal_pos = (10.0, 10.0)
     lunar_env = Environment()
-    lunar_env.load_from_yaml_file(args.lunar_env)
+    lunar_env.load_from_yaml_file(lunar_env)
     goal_dist = 0.1
     rrt_iters = 10
 

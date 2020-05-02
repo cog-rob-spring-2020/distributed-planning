@@ -13,7 +13,7 @@ class DMARRTAgent(Agent):
     """
 
     def __init__(self, *args, **kwargs):
-        super(DMARRTAgent, self).__init__(args, kwargs)
+        super(DMARRTAgent, self).__init__(*args, **kwargs)
 
         # a unique name given to us by ROS
         self.identifier = rospy.get_name()

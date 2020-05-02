@@ -6,7 +6,7 @@ import rospy
 from rrtstar import Node, NodeStamped, RRTstar, Path
 
 
-class Agent:
+class Agent(object):
     def __init__(self, start_pos, goal_pos, environment, goal_dist, rrt_iters):
         """
         Initializer for Agent class; represents a robot capable of

@@ -58,7 +58,6 @@ class Environment:
             if self.load_from_yaml_file(yaml_file):
                 if bounds is None:
                     self.calculate_scene_dimensions()
-                self.environment_loaded = True
 
     def add_obstacles(self, obstacles):
         self.obstacles = self.obstacles + obstacles
@@ -112,6 +111,7 @@ class Environment:
         self.expanded_obstacles = [
             obs.buffer(0.75 / 2, resolution=2) for obs in self.obstacles
         ]
+        self.environment_loaded = True
 
     def parse_rectangle(self, name, description):
         center = description["center"]

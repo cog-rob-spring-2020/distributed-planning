@@ -130,6 +130,57 @@ class RewardQueueAgent(Agent):
         """
         pass
 
+    def spin_once(self):
+        """
+        Runs the agent's individual DMA-RRT component once.
+
+        The interaction component is handled using Agent callbacks.
+        """
+        self.dma_individual()
+
+        # Assign first "current path" found
+        if not self.curr_plan.nodes:
+            self.curr_plan = new_plan
+        self.best_plan = new_plan
+
+        if self.token_holder:
+            # Replan to new best path
+            self.curr_plan = self.best_plan
+
+            # Solve collisions with time reallocation
+            self.curr_plan = Plan.multiagent_aware_time_realloc(
+                self.curr_plan, self.other_agent_plans
+            )
+
+            # Broadcast the new winner of the bidding round
+            if self.bids:
+                self.token_holder = False
+                winner_bid = max(self.bids.values())
+                winner_ids = [id for id, bid in self.bids.items() if bid == winner_bid]
+                winner_id = random.choice(winner_ids)
+                self.broadcast_waypoints(winner_id)
+        else:
+            self.broadcast_bid(self.curr_plan.cost - self.best_plan.cost)
+
+        """
+        TODO:
+        rework RRT planning to sequentially plan from current position
+        to first goal, then from first goal to second goal.
+        curr_plan and best_plan should both go through both goals!
+        """
+        # TODO:
+        # if-else for other token (for getting goals off queue)
+        # if self.goal_token_holder and you have space for a new goal:
+        #   take first goal off queue
+        #   compute winner of next round of goal bidding (ignoring bidders for goal we just claimed)
+        #   broadcast winner (tells everyone to remove goal we claimed)
+        # else:
+        #   bid on our favorite goal in the queue
+
+        # Prevent agent from getting the token if they finish.
+        if self.at_goal():
+            self.broadcast_bid(-1000.0)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(

@@ -1,4 +1,6 @@
+import random
 import rospy
+from distributed_planning.msg import *
 from agent import Agent
 
 
@@ -10,47 +12,42 @@ class DMARRTAgent(Agent):
     def __init__(self, *args, **kwargs):
         super(DMARRTAgent, self).__init__(args, kwargs)
 
+        # a unique name given to us by ROS
         self.identifier = rospy.get_name()
 
-        self.peer_pub = rospy.Publisher("peers", PlanBid, queue_size=10)
-        self.bid_pub = rospy.Publisher("plan_bids", PlanBid, queue_size=10)
+        # be ready for replanning bids
+        rospy.Subscriber("plan_bids", PlanBid, self.received_plan_bid)
+        self.plan_bid_pub = rospy.Publisher("plan_bids", PlanBid, queue_size=10)
+
+        # be ready for updated waypoints from the winner
+        rospy.Subscriber(
+            "waypoints", Waypoints, self.received_waypoints_and_replan_winner
+        )
         self.waypoints_pub = rospy.Publisher("waypoints", Waypoints, queue_size=10)
 
-        # Register as listener for different kinds of messages
-        # TODO: make sure these work!!!
-        rospy.Subscriber("registration", Registration, self.received_id)
-        rospy.Subscriber("plan_bids", PlanBid, self.received_bid)
-        rospy.Subscriber("waypoints", Waypoints, self.received_waypoints)
-
         # let the other agents know a new agent is on the network
+        rospy.Subscriber("registration", Registration, self.received_registration)
         registration_pub = rospy.Publisher("registration", Registration)
         registration_pub.publish(rospy.get_name())
+
+        # Keeps track of other agents' current bids for PPI (potential path improvement) at any given time
+        self.plan_bids = dict()
+        # paths by peer ID. all peers should be represented once here, and as such calling `len(self.peer_waypoints)` should give an accurate count of peers
+        self.peer_waypoints = dict()
+        # whether or not this agent is holding the replan token
+        self.plan_token_holder = False
 
         # TODO: how should this be updated?
         self.curr_time = 0.0  # Simulation time. Updated externally
 
-        # Keeps track of other agents' current bids for PPI
-        #     (potential path improvement) at any given time:
-        self.bids = dict()
-        self.token_holder = False
-
-        # TODO: new attributes needed for new pseudocode
-        # (fix these and place them in positions that make sense)
-        self.replan_token_holder = False
-        self.goal_token_holder = False
-        self.replan_bids = dict()
-        self.goal_bids = dict()
-        self.queue = []
-
-    def received_id(self, msg):
+    def received_registration(self, msg):
         """
-        TODO
+        We met a peer, let's note that we're tracking their path
         """
         if msg.sender_id != self.identifier:
-            self.bids[msg.sender_id] = 0.0
-            self.other_agent_plans[msg.sender_id] = Path()
+            self.peer_waypoints[msg.sender_id] = Path()
 
-    def received_replan_bid(self, msg):
+    def received_plan_bid(self, msg):
         """
         Update internal state to reflect other agent's PPI bid.
 
@@ -59,49 +56,91 @@ class DMARRTAgent(Agent):
         msg.bid - agent's PPI (potential path improvement) for current
         planning iteration
         """
-        if msg.sender_id != self.identifier:
-            self.replan_bids[msg.sender_id] = msg.bid
+        self.plan_bids[msg.sender_id] = msg.bid
 
     def received_waypoints_and_replan_winner(self, msg):
         """
+        Interactive component of DMA-RRT as described in algorithm 5 from Desaraju/How 2012.
+
         Update internal state to reflect constraints based on
         other agent's new planned path.
 
         Also, if winner, update internal state to hold the token.
 
-        msg - message of type TODO (blend of Waypoints/TokenHolder)
+        msg - message of type Waypoints
         msg.sender_id - unique ID of the agent who sent the message
         msg.winner_id - unique ID of the agent who has won the replanning token
         msg.locations - path of waypoints
         """
-        if msg.sender_id != self.identifier:
-            self.other_agent_plans[msg.sender_id] = msg.locations
-
         if msg.winner_id == self.identifier:
-            self.replan_token_holder = True
+            self.plan_token_holder = True
+
+        self.peer_waypoints[msg.sender_id] = msg.waypoints
 
     def broadcast_replan_bid(self, bid):
         """
-        Broadcasts the following message to the TODO topic:
+        Broadcasts the following message to the plan_bids topic
 
         msg - message of type PlanBid
         msg.sender_id - this agent's unique ID
         msg.bid - this agent's PPI, given by `bid`
         """
-        pass
+        msg = PlanBid()
+        msg.sender_id = self.identifier
+        msg.bid = bid
+        self.plan_bid_pub.publish(msg)
 
-    def broadcast_waypoints_and_replan_winner(self, winner_id):
+    def spin_once(self):
         """
-        Broadcasts the following message to the TODO topic:
+        Individual component of DMA-RRT as described in algorithm 4
+        from Desaraju/How 2012.
 
-        msg - message of type TODO (blend of Waypoints/TokenHolder)
-        msg.sender_id - this agent's unique ID
-        msg.winner_id - unique ID of the agent who has won the
-         replanning token, given by `winner_id`
-        msg.locations - path of waypoints representing this agent's
-         current plan being executed
+        If this agent holds the replanning token, it will update its
+        internal plan and broadcast the next winner. Otw, it will
+        broadcast its own PPI bid.
+
+        If this agent holds the goal claiming token, it will claim
+        its favorite goal and broadcast the next winner. Otw, it will
+        broadcast its own new goal bid.
         """
-        pass
+        # TODO: do we need a timeout here instead of rrt_iters???
+        new_plan = self.create_new_plan()
+
+        # Assign first "current path" found
+        if not self.curr_plan.nodes:
+            self.curr_plan = new_plan
+        self.best_plan = new_plan
+
+        if self.plan_token_holder:
+            # Replan to new best path
+            self.curr_plan = self.best_plan
+
+            # Solve collisions with time reallocation
+            self.curr_plan = Plan.multiagent_aware_time_realloc(
+                self.curr_plan, self.other_agent_plans
+            )
+
+            # Broadcast the new winner of the bidding round
+            if len(self.plan_bids) > 0:
+                # select a winner based on bids
+                winner_bid = max(self.bids.values())
+                winner_ids = [id for id, bid in self.bids.items() if bid == winner_bid]
+                # break bid ties with randomness
+                winner_id = random.choice(winner_ids)
+
+                # broadcast own waypoints and new token holder
+                msg = Waypoints()
+                msg.sender_id = winner_id
+                msg.waypoints = self.best_plan
+                self.waypoints_pub.publish(msg)
+
+                self.plan_token_holder = False
+        else:
+            self.broadcast_replan_bid(self.curr_plan.cost - self.best_plan.cost)
+
+        if self.at_goal():
+            # no more replanning necessary!
+            self.broadcast_bid(-1000.0)
 
 
 if __name__ == "__main__":
@@ -110,9 +149,10 @@ if __name__ == "__main__":
     )
     parser.add_argument("lunar_env", nargs=1)
 
+    # TODO: need to randomly make one agent have the token at the start
+    # put in roslaunch probably
     try:
         args = parser.parse_args()
-        print args
 
         mode = "normal"
         start_pos = (0.0, 0.0)
@@ -123,6 +163,7 @@ if __name__ == "__main__":
         rrt_iters = 10
 
         rospy.init_node("agent", anonymous=True)
+        # TODO: pass a callback to get the current time?
         agent = DMARRTAgent(mode, start_pos, goal_pos, lunar_env, goal_dist, rrt_iters)
 
         rate = rospy.Rate(10)

@@ -32,7 +32,7 @@ class Node(object):
 
 class NodeStamped(Node):
     def __init__(self, node):
-        super(NodeStamped).__init__(node.x, node.y)
+        super(NodeStamped, self).__init__(node.x, node.y)
         self.path_x = node.path_x
         self.path_y = node.path_y
         self.parent = node.parent

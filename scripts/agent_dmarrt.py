@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import argparse
 import random
 import rospy
 from distributed_planning.msg import *
@@ -146,32 +145,25 @@ class DMARRTAgent(Agent):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run an agent ROS node.")
-    parser.add_argument("lunar_env", nargs=1)
-    parser.add_argument(
-        "--has-token",
-        help="Starts with a token (only one agent should have this flag set)",
-        action="store_true",
-    )
+    lunar_env = rospy.get_param("/lunar_env")
+    has_token = rospy.get_param("has_token")
 
-    try:
-        args = parser.parse_args()
+    print has_token
+    print lunar_env
 
-        mode = "normal"
-        start_pos = (0.0, 0.0)
-        goal_pos = (10.0, 10.0)
-        lunar_env = Environment()
-        lunar_env.load_from_yaml_file(args.lunar_env)
-        goal_dist = 0.1
-        rrt_iters = 10
+    mode = "normal"
+    start_pos = (0.0, 0.0)
+    goal_pos = (10.0, 10.0)
+    lunar_env = Environment()
+    lunar_env.load_from_yaml_file(args.lunar_env)
+    goal_dist = 0.1
+    rrt_iters = 10
 
-        rospy.init_node("agent", anonymous=True)
-        # TODO: pass a callback to get the current time?
-        agent = DMARRTAgent(mode, start_pos, goal_pos, lunar_env, goal_dist, rrt_iters)
+    rospy.init_node("agent", anonymous=True)
+    # TODO: pass a callback to get the current time?
+    agent = DMARRTAgent(mode, start_pos, goal_pos, lunar_env, goal_dist, rrt_iters)
 
-        rate = rospy.Rate(10)
-        while not rospy.is_shutdown():
-            agent.spin_once()
-            rate.sleep()
-    except:
-        parser.print_help()
+    rate = rospy.Rate(10)
+    while not rospy.is_shutdown():
+        agent.spin_once()
+        rate.sleep()

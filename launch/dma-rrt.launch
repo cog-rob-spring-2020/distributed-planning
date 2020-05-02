@@ -1,19 +1,12 @@
 <launch>
 
-  <node pkg="distributed_planning" type="agent_dmarrt.py" name="$(anon agent-1)" >
-    <param name="lunar_env" type="str" value="$(find distributed_planning)/data/$(arg lunar_env)" />
-  </node>
-  <node pkg="distributed_planning" type="agent_dmarrt.py" name="$(anon agent-2)" >
-    <param name="lunar_env" type="str" value="$(find distributed_planning)/data/$(arg lunar_env)" />
-  </node>
-  <node pkg="distributed_planning" type="agent_dmarrt.py" name="$(anon agent-3)" >
-    <param name="lunar_env" type="str" value="$(find distributed_planning)/data/$(arg lunar_env)" />
-  </node>
-  <node pkg="distributed_planning" type="agent_dmarrt.py" name="$(anon agent-4)" >
-    <param name="lunar_env" type="str" value="$(find distributed_planning)/data/$(arg lunar_env)" />
-  </node>
-  <node pkg="distributed_planning" type="agent_dmarrt.py" name="$(anon agent-5)" >
-    <param name="lunar_env" type="str" value="$(find distributed_planning)/data/$(arg lunar_env)" />
+  <param name="lunar_env" type="str" value="$(find distributed_planning)/data/$(arg lunar_env)" />
+
+  <node pkg="distributed_planning" type="agent_dmarrt.py" name="$(anon agent-1)" />
+  <node pkg="distributed_planning" type="agent_dmarrt.py" name="$(anon agent-2)" />
+  <node pkg="distributed_planning" type="agent_dmarrt.py" name="$(anon agent-3)" />
+  <node pkg="distributed_planning" type="agent_dmarrt.py" name="$(anon agent-4)" />
+  <node pkg="distributed_planning" type="agent_dmarrt.py" name="$(anon agent-5)" />
     <param name="has_token" type="bool" value="true" />
   </node>
 

@@ -31,7 +31,8 @@ class DMARRTAgent(Agent):
         # let the other agents know a new agent is on the network
         rospy.Subscriber("registration", Registration, self.received_registration)
         registration_pub = rospy.Publisher("registration", Registration)
-        registration_pub.publish(rospy.get_name())
+        msg = Registration(sender_id=rospy.get_name())
+        registration_pub.publish(msg)
 
         # Keeps track of other agents' current bids for PPI (potential path improvement) at any given time
         self.plan_bids = dict()

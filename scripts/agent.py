@@ -33,7 +33,6 @@ class Agent(object):
         self.pos = self.start
         self.environment = environment
 
-        rospy.logdebug("initializing with env %s", environment.environment_loaded)
         self.rrt = RRTstar(
             self.start, self.goal, self.environment, goal_dist, max_iter=rrt_iters
         )

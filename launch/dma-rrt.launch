@@ -1,9 +1,9 @@
 <launch>
 
-  <node pkg="distributed_planning" type="agent-dmarrt" name="agent" args="$(find distributed-planning)/data/$(arg lunar_env)" />
-  <node pkg="distributed_planning" type="agent-dmarrt" name="agent" args="$(find distributed-planning)/data/$(arg lunar_env)" />
-  <node pkg="distributed_planning" type="agent-dmarrt" name="agent" args="$(find distributed-planning)/data/$(arg lunar_env)" />
-  <node pkg="distributed_planning" type="agent-dmarrt" name="agent" args="$(find distributed-planning)/data/$(arg lunar_env)" />
-  <node pkg="distributed_planning" type="agent-dmarrt" name="agent" args="$(find distributed-planning)/data/$(arg lunar_env) --has-token" />
+  <node pkg="distributed_planning" type="agent-dmarrt" name="agent" args="$(find distributed_planning)/data/$(arg lunar_env)" />
+  <node pkg="distributed_planning" type="agent-dmarrt" name="agent" args="$(find distributed_planning)/data/$(arg lunar_env)" />
+  <node pkg="distributed_planning" type="agent-dmarrt" name="agent" args="$(find distributed_planning)/data/$(arg lunar_env)" />
+  <node pkg="distributed_planning" type="agent-dmarrt" name="agent" args="$(find distributed_planning)/data/$(arg lunar_env)" />
+  <node pkg="distributed_planning" type="agent-dmarrt" name="agent" args="$(find distributed_planning)/data/$(arg lunar_env) --has-token" />
 
 </launch>

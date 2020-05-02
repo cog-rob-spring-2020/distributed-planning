@@ -16,7 +16,7 @@ class RewardQueueAgent(DMARRTAgent):
         super(RewardQueueAgent, self).__init__(args, kwargs)
 
         # Keeps track of other agents' current goal bids at any given time
-        self.goal_bids = dict()
+        self.goal_bids = {}
 
         # whether or not this agent is holding the goal token
         self.goal_token_holder = False

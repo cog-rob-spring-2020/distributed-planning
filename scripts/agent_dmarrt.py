@@ -66,9 +66,9 @@ class DMARRTAgent(object):
         registration_pub.publish(msg)
 
         # Keeps track of other agents' current bids for PPI (potential path improvement) at any given time
-        self.plan_bids = dict()
+        self.plan_bids = {}
         # paths by peer ID. all peers should be represented once here, and as such calling `len(self.peer_waypoints)` should give an accurate count of peers
-        self.peer_waypoints = dict()
+        self.peer_waypoints = {}
         # whether or not this agent is holding the replan token
         self.plan_token_holder = False
 

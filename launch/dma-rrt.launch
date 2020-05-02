@@ -1,5 +1,5 @@
 <launch>
-
+  <arg name="lunar_env" default="env_simple.yaml"/>
   <param name="env_file" textfile="$(find distributed_planning)/data/$(arg lunar_env)" />
 
   <!-- TODO: individual starting points, goals -->

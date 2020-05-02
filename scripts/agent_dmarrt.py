@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import random
 import rospy
+import yaml
 from distributed_planning.msg import *
 from agent import Agent
 from environment import Environment
@@ -153,7 +154,7 @@ if __name__ == "__main__":
     start_pos = (0.0, 0.0)
     goal_pos = (10.0, 10.0)
     lunar_env = Environment()
-    lunar_env.parse_yaml_data(env_file)
+    lunar_env.parse_yaml_data(yaml.safe_load(env_file))
     goal_dist = 0.1
     rrt_iters = 10
 

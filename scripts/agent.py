@@ -2,7 +2,6 @@ import argparse
 import time
 import numpy as np
 import rospy
-from shapely.geometry import Point
 
 from rrtstar import Node, NodeStamped, RRTstar, Path
 

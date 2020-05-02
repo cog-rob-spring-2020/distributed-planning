@@ -162,10 +162,14 @@ if __name__ == "__main__":
 
     rospy.init_node("agent", anonymous=True, log_level=rospy.DEBUG)
 
-    rospy.logdebug("The environment has %s obstacles", len(lunar_env.obstacles))
-
     # TODO: pass a callback to get the current time?
-    agent = DMARRTAgent(start_pos, goal_pos, lunar_env, goal_dist, rrt_iters)
+    agent = DMARRTAgent(
+        start_pos=start_pos,
+        goal_pos=goal_pos,
+        environment=lunar_env,
+        goal_dist=goal_dist,
+        rrt_iters=rrt_iters,
+    )
 
     rate = rospy.Rate(10)
     while not rospy.is_shutdown():

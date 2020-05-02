@@ -3,6 +3,7 @@ import random
 import rospy
 from distributed_planning.msg import *
 from agent import Agent
+from environment import Environment
 
 
 class DMARRTAgent(Agent):

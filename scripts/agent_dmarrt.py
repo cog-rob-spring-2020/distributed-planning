@@ -149,14 +149,13 @@ if __name__ == "__main__":
     lunar_env = rospy.get_param("/lunar_env")
     has_token = rospy.get_param("~has_token", False)
 
-    print has_token
-    print lunar_env
+    rospy.loginfo(lunar_env, has_token)
 
     mode = "normal"
     start_pos = (0.0, 0.0)
     goal_pos = (10.0, 10.0)
     lunar_env = Environment()
-    lunar_env.load_from_yaml_file(lunar_env)
+    lunar_env.parse_yaml_data(lunar_env)
     goal_dist = 0.1
     rrt_iters = 10
 

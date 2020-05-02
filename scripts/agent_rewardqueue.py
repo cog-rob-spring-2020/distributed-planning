@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import rospy
 from agent import Agent
 

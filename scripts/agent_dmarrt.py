@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import random
 import rospy
 from distributed_planning.msg import *

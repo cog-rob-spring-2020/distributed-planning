@@ -145,8 +145,8 @@ class DMARRTAgent(Agent):
 
 
 if __name__ == "__main__":
-    lunar_env = rospy.get_param("lunar_env")
-    has_token = rospy.get_param("has_token")
+    lunar_env = rospy.get_param("~lunar_env")
+    has_token = rospy.get_param("~has_token")
 
     print has_token
     print lunar_env

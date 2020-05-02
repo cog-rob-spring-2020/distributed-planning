@@ -148,9 +148,12 @@ if __name__ == "__main__":
         program="agent", description="Run an agent ROS node."
     )
     parser.add_argument("lunar_env", nargs=1)
+    parser.add_argument(
+        "--has-token",
+        help="Starts with a token (only one agent should have this flag set)",
+        action="store_true",
+    )
 
-    # TODO: need to randomly make one agent have the token at the start
-    # put in roslaunch probably
     try:
         args = parser.parse_args()
 

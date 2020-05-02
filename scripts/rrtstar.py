@@ -12,7 +12,7 @@ import rospy
 from environment import Environment
 
 
-class Node:
+class Node(object):
     def __init__(self, x, y):
         self.x = x
         self.y = y
@@ -32,7 +32,7 @@ class Node:
 
 class NodeStamped(Node):
     def __init__(self, node):
-        super().__init__(node.x, node.y)
+        super(NodeStamped).__init__(node.x, node.y)
         self.path_x = node.path_x
         self.path_y = node.path_y
         self.parent = node.parent

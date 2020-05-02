@@ -31,15 +31,15 @@ class RewardQueueAgent(Agent):
 
         # Keeps track of other agents' current bids for PPI
         #     (potential path improvement) at any given time:
-        self.bids = dict()
+        self.bids = {}
         self.token_holder = False
 
         # TODO: new attributes needed for new pseudocode
         # (fix these and place them in positions that make sense)
         self.replan_token_holder = False
         self.goal_token_holder = False
-        self.replan_bids = dict()
-        self.goal_bids = dict()
+        self.replan_bids = {}
+        self.goal_bids = {}
         self.queue = []
 
     def received_id(self, msg):

@@ -25,7 +25,7 @@ class Agent(object):
 
         # Keeps track of other agents' plans so that we can
         #   add the other agents as obstacles when replanning:
-        self.other_agent_plans = dict()
+        self.other_agent_plans = {}
 
         # Initial state and environment
         self.start = start_pos

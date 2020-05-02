@@ -2,6 +2,8 @@
 
   <param name="env_file" textfile="$(find distributed_planning)/data/$(arg lunar_env)" />
 
+  <!-- TODO: individual starting points, goals -->
+  <!-- TODO: log paths to a file that can be visualized -->
   <node pkg="distributed_planning" type="agent_dmarrt.py" name="$(anon agent-1)" />
   <node pkg="distributed_planning" type="agent_dmarrt.py" name="$(anon agent-2)" />
   <node pkg="distributed_planning" type="agent_dmarrt.py" name="$(anon agent-3)" />

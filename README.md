@@ -17,6 +17,8 @@ See [instructions](https://docs.google.com/document/d/1oX_eJmV-vMKZSr4hDh7DyUTJE
 * [ROS Kinetic](http://wiki.ros.org/kinetic) on [Ubuntu 16.04](http://releases.ubuntu.com/16.04/)
 * Python 2.7, which should be installed as `python` by default on Ubuntu 16.04
   * The class VM already has `numpy` and `matplotlib` installed
+* The following extra Python packages: [Shapely](https://pypi.org/project/Shapely/), [Descartes](https://pypi.org/project/descartes/)
+  * `sudo apt-get install -y python-shapely python-descartes`
 
 ### Installation
 

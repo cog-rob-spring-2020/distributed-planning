@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import argparse
 import random
 import rospy
 from distributed_planning.msg import *

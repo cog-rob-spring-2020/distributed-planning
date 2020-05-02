@@ -146,9 +146,7 @@ class DMARRTAgent(Agent):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        program="agent", description="Run an agent ROS node."
-    )
+    parser = argparse.ArgumentParser(description="Run an agent ROS node.")
     parser.add_argument("lunar_env", nargs=1)
     parser.add_argument(
         "--has-token",

@@ -150,7 +150,6 @@ if __name__ == "__main__":
     env_file = rospy.get_param("/env_file")
     has_token = rospy.get_param("~has_token", False)
 
-    mode = "normal"
     start_pos = (0.0, 0.0)
     goal_pos = (10.0, 10.0)
     lunar_env = Environment()
@@ -160,7 +159,7 @@ if __name__ == "__main__":
 
     rospy.init_node("agent", anonymous=True)
     # TODO: pass a callback to get the current time?
-    agent = DMARRTAgent(mode, start_pos, goal_pos, lunar_env, goal_dist, rrt_iters)
+    agent = DMARRTAgent(start_pos, goal_pos, lunar_env, goal_dist, rrt_iters)
 
     rate = rospy.Rate(10)
     while not rospy.is_shutdown():

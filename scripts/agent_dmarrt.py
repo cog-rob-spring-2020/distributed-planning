@@ -30,7 +30,7 @@ class DMARRTAgent(Agent):
 
         # let the other agents know a new agent is on the network
         rospy.Subscriber("registration", Registration, self.received_registration)
-        registration_pub = rospy.Publisher("registration", Registration)
+        registration_pub = rospy.Publisher("registration", Registration, queue_size=10)
         msg = Registration(sender_id=rospy.get_name())
         registration_pub.publish(msg)
 
@@ -153,8 +153,11 @@ if __name__ == "__main__":
 
     start_pos = (0.0, 0.0)
     goal_pos = (10.0, 10.0)
+
     lunar_env = Environment()
+    rospy.logwarn("The environment has %s obstacles", len(lunar_env.obstacles))
     lunar_env.parse_yaml_data(yaml.safe_load(env_file))
+
     goal_dist = 0.1
     rrt_iters = 10
 

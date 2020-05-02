@@ -21,30 +21,29 @@ def plot_environment(env, bounds=None, figsize=None):
 
     max_width, max_height = 12, 5.5
     if figsize is None:
-        width, height = max_width, (maxy-miny)*max_width/(maxx-minx)
+        width, height = max_width, (maxy - miny) * max_width / (maxx - minx)
         if height > 5:
-            width, height = (maxx-minx)*max_height/(maxy-miny), max_height
+            width, height = (maxx - minx) * max_height / (maxy - miny), max_height
         figsize = (width, height)
     f = plt.figure(figsize=figsize)
     ax = f.add_subplot(111)
     for i, obs in enumerate(env.obstacles):
-        patch = PolygonPatch(obs, fc='blue', ec='blue', alpha=0.5, zorder=20)
+        patch = PolygonPatch(obs, fc="blue", ec="blue", alpha=0.5, zorder=20)
         ax.add_patch(patch)
 
     plt.xlim([minx, maxx])
     plt.ylim([miny, maxy])
-    ax.set_aspect('equal', adjustable='box')
+    ax.set_aspect("equal", adjustable="box")
     return ax
 
 
 def plot_line(ax, line, color):
     x, y = line.xy
-    ax.plot(x, y, color=color, linewidth=3, solid_capstyle='round', zorder=1)
+    ax.plot(x, y, color=color, linewidth=3, solid_capstyle="round", zorder=1)
 
 
 def plot_poly(ax, poly, color, alpha=1.0, zorder=1):
-    patch = PolygonPatch(poly, fc=color, ec="black",
-                         alpha=alpha, zorder=zorder)
+    patch = PolygonPatch(poly, fc=color, ec="black", alpha=alpha, zorder=zorder)
     ax.add_patch(patch)
 
 
@@ -86,9 +85,9 @@ class Environment:
         return self.parse_yaml_data(self.data)
 
     def parse_yaml_data(self, data):
-        if 'environment' in data:
-            env = data['environment']
-            self.parse_yaml_obstacles(env['obstacles'])
+        if "environment" in data:
+            env = data["environment"]
+            self.parse_yaml_obstacles(env["obstacles"])
             return True
         else:
             return False
@@ -100,9 +99,9 @@ class Environment:
             # Double underscore not allowed in region names.
             if name.find("__") != -1:
                 raise Exception("Names cannot contain double underscores.")
-            if description['shape'] == 'rectangle':
+            if description["shape"] == "rectangle":
                 parsed = self.parse_rectangle(name, description)
-            elif description['shape'] == 'polygon':
+            elif description["shape"] == "polygon":
                 parsed = self.parse_polygon(name, description)
             else:
                 raise Exception("not a rectangle")
@@ -110,21 +109,24 @@ class Environment:
                 raise Exception("%s is not valid!" % name)
             self.obstacles.append(parsed)
             self.obstacles_map[name] = parsed
-        self.expanded_obstacles = [obs.buffer(
-            0.75/2, resolution=2) for obs in self.obstacles]
+        self.expanded_obstacles = [
+            obs.buffer(0.75 / 2, resolution=2) for obs in self.obstacles
+        ]
 
     def parse_rectangle(self, name, description):
-        center = description['center']
+        center = description["center"]
         center = geom.Point((center[0], center[1]))
-        length = description['length']
-        width = description['width']
+        length = description["length"]
+        width = description["width"]
         # convert rotation to radians
-        rotation = description['rotation']  # * math.pi/180
+        rotation = description["rotation"]  # * math.pi/180
         # figure out the four corners.
-        corners = [(center.x - length/2., center.y - width/2.),
-                   (center.x + length/2., center.y - width/2.),
-                   (center.x + length/2., center.y + width/2.),
-                   (center.x - length/2., center.y + width/2.)]
+        corners = [
+            (center.x - length / 2.0, center.y - width / 2.0),
+            (center.x + length / 2.0, center.y - width / 2.0),
+            (center.x + length / 2.0, center.y + width / 2.0),
+            (center.x - length / 2.0, center.y + width / 2.0),
+        ]
         # print corners
         polygon = geom.Polygon(corners)
         out = affinity.rotate(polygon, rotation, origin=center)
@@ -135,7 +137,7 @@ class Environment:
         return out
 
     def parse_polygon(self, name, description):
-        _points = description['corners']
+        _points = description["corners"]
         for points in itertools.permutations(_points):
             polygon = geom.Polygon(points)
             polygon.name = name
@@ -147,13 +149,13 @@ class Environment:
         obstacles = {}
         for i, ob in enumerate(self.obstacles):
             ob_dict = {}
-            ob_dict['shape'] = 'polygon'
-            ob_dict['corners'] = [list(t) for t in list(ob.boundary.coords)]
+            ob_dict["shape"] = "polygon"
+            ob_dict["corners"] = [list(t) for t in list(ob.boundary.coords)]
             ob_name = "obstacle%.4d" % i
             obstacles[ob_name] = ob_dict
-        yaml_dict['environment'] = {'obstacles': obstacles}
+        yaml_dict["environment"] = {"obstacles": obstacles}
 
-        f = open(yaml_file, 'w')
+        f = open(yaml_file, "w")
         f.write(yaml.dump(yaml_dict, default_flow_style=None))
         f.close()
 
@@ -171,8 +173,7 @@ def random_environment(bounds, start, radius, goal, n, size_limits=(0.5, 1.5)):
     obi = 0
     while obi < n:
         r = np.random.uniform(low=0.0, high=1.0, size=2)
-        xy = np.array([minx + (maxx - minx) * r[0],
-                       miny + (maxy - miny) * r[1]])
+        xy = np.array([minx + (maxx - minx) * r[0], miny + (maxy - miny) * r[1]])
 
         angles = np.random.rand(edges)
         angles = angles * 2 * np.pi / np.sum(angles)

@@ -156,6 +156,7 @@ if __name__ == "__main__":
 
     lunar_env = Environment()
     lunar_env.parse_yaml_data(yaml.safe_load(env_file))
+    lunar_env.calculate_scene_dimensions()
 
     goal_dist = 0.1
     rrt_iters = 10

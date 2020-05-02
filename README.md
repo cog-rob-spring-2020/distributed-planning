@@ -1,57 +1,48 @@
-# Distributed Planning
+# Distributed Planning Assignment and Grand Challenge
 
 16.412 final project
 
----
+## Assignment
 
-## File Structure
+The student-facing Jupyter notebook and its solutions live in `./assignment.` See `./assignment/README.md` for more information.
 
-```
-/
-|-- assignment/ - student-facing notebook and pset code, including tutorial
-|-- solutions/  - instructor-facing algo solutions, some example notebooks for testing
-|-- tests/      - instructor-facing unit tests
-```
+## Grand Challenge
 
-## Development
+### Development
 
-* Python 3.8
+See [instructions](https://docs.google.com/document/d/1oX_eJmV-vMKZSr4hDh7DyUTJEKLYcL7JspLI2c2MxHc/edit#heading=h.la9ejcobwj1r) on accessing the VM
 
-For sanity's sake, let's use 4 spaces. If you use VS Code, this repo includes settings that will automatically set tabs to 4 spaces.
+#### Dependencies
 
-All Python dependencies are in `requirements.txt`. We recommend using a [virtual environment](https://docs.python.org/3/library/venv.html) (venv) to manage dependencies.
+* [ROS Kinetic](http://wiki.ros.org/kinetic) on [Ubuntu 16.04](http://releases.ubuntu.com/16.04/)
+* Python 2.7, which should be installed as `python` by default on Ubuntu 16.04
+  * The class VM already has `numpy` and `matplotlib` installed
+* The following extra Python packages: [Shapely](https://pypi.org/project/Shapely/), [Descartes](https://pypi.org/project/descartes/)
+  * `sudo apt-get install -y python-shapely python-descartes`
 
-If you're on Linux/Unix, here's a quick guide. If you're on Windows, see the Python [documentation](https://docs.python.org/3/library/venv.html).
-1. `python -m venv .venv` (assuming `python` is version 3.8. You may need to adjust depending on how Python is installed on your system)
-2. `. .venv/bin/activate`
-3. `pip install -r requirements.txt`
+### Installation
 
-## Jupyter Notebook Usage
+0. Make sure your [ROS environment is setup](http://wiki.ros.org/ROS/Tutorials/InstallingandConfiguringROSEnvironment)
+1. Assuming you followed the default instructions for creating a ROS environment in `~/catkin_ws`, clone this repo to `~/catkin_ws/src/distributed-planning`
+  1. `mkdir -p ~/catkin_ws/src`
+  2. `cd ~/catkin_ws/src`
+  3. `git clone git@github.mit.edu:cameronp/distributed-planning`
+2. `cd ~/catkin_ws`
+3. `catkin_make`
+4. `source devel/setup.bash`
 
-```sh
-PYTHONPATH="$PWD" jupyter notebook
-```
+### Running
 
-When it loads, make sure you're using the kernel from your venv.
-
-### Testing
-
-With your venv activated:
+We recommend using `roslaunch`. For example:
 
 ```sh
-PYTHONPATH="$PWD" nose2 --pretty-assert
+roslaunch distributed_planning dma-rrt.launch lunar_env:=env_simple.yaml
 ```
 
-### Installing New Packages
+`lunar_env` refers to a file defining the physical obstacles in the lunar environment and can be any file in `data/`. (Why `lunar_env`? The word "envrionment" by itself is already overloaded in the context of running command line programs.)
 
-Let's keep `requirements.txt` up to date with all required packages. With your venv activated:
+To run an individual node, you would run:
 
 ```sh
-# make sure you've installed everything first or the next step will blow away
-# packages you haven't installed
-pip install -r requirements.txt
-
-# actually install the new package (`foo` in this case) and then update
-# the requirements
-pip install foo && pip freeze > requirements.txt
+rosrun distributed-planning main ./environment.yaml
 ```

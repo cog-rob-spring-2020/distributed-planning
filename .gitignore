@@ -6,6 +6,9 @@
 *.py[cod]
 *$py.class
 
+# Apple :(
+*.DS_STORE
+
 # C extensions
 *.so
 

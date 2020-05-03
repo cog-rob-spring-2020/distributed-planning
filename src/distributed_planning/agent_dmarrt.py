@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 import random
+import numpy as np
 import yaml
 
 from distributed_planning.msg import GoalBid, PlanBid, WinnerID
 from agent import Agent
-from rrtstar import Path
-from environment import Environment
+from rrtstar import RRTstar, Path
 
 import rospy
 import tf
 import tf2_ros
-from std_msgs.msg import Header, String
+from std_msgs.msg import Header
 from geometry_msgs.msg import Pose, PoseStamped, Transform, \
         TransformStamped, Point, PoseWithCovarianceStamped
 from nav_msgs.msg import Path as PathRosMsg
@@ -24,6 +24,7 @@ class DMARRTAgent(Agent):
     """
 
     def __init__(self):
+        # Get All ROS params
         self.identifier = rospy.get_name()[1:]
 
         agent_params = rospy.get_param("/" + self.identifier)
@@ -31,14 +32,32 @@ class DMARRTAgent(Agent):
         goal_pos = (agent_params['goal_pos']['x'], agent_params['goal_pos']['y'])
         goal_dist = agent_params['goal_dist']
         rrt_iters = agent_params['rrt_iters']
-        step_size = agent_params['step_size']
+        step = agent_params['step_size']
         ccd = agent_params['near_radius']
         self.spin_rate = agent_params['spin_rate']
 
         # get map data from server
         map = rospy.wait_for_message("/map", OccupancyGrid)
+        
 
-        super(DMARRTAgent, self).__init__(start_pos, goal_pos, map, goal_dist, rrt_iters, step_size, ccd)
+        # Keeps track of other agents' plans so that we can
+        #   add the other agents as obstacles when replanning:
+        self.other_agent_plans = {}
+
+        # Initial state and RRT planner
+        self.start = start_pos
+        self.goal = goal_pos
+        self.pos = self.start
+
+        self.rrt = RRTstar(
+            start_pos, goal_pos, map, goal_dist,
+            step_size=step, near_radius=ccd, max_iter=rrt_iters
+        )
+        
+        # curr_plan is the currently executing plan; best_plan is a
+        #    lower-cost path than curr_plan, if one exists.
+        self.curr_plan = Path()
+        self.best_plan = Path()
 
         self.plan_bids = {}
         self.peer_waypoints = {}
@@ -58,7 +77,7 @@ class DMARRTAgent(Agent):
         rospy.Subscriber("winner_id", WinnerID, self.winner_id_cb)
         self.winner_id_pub = rospy.Publisher("winner_id", WinnerID, queue_size=10)
 
-        # publish static tf for own map frame
+        # publish static tf for private map frame
         self.own_map_frame_id = "/" + self.identifier + "_map"
         self.static_tf_broadcaster = tf2_ros.StaticTransformBroadcaster()
         own_map_tf = TransformStamped()
@@ -133,9 +152,9 @@ class DMARRTAgent(Agent):
             self.curr_plan = self.best_plan
 
             # Solve collisions with time reallocation
-            # self.curr_plan = Plan.multiagent_aware_time_realloc(
-            #     self.curr_plan, self.other_agent_plans
-            # )
+            self.curr_plan = DMARRTAgent.multiagent_aware_time_realloc(
+                self.curr_plan, self.other_agent_plans
+            )
 
             # Broadcast the new winner of the bidding round
             if len(self.plan_bids) > 0:
@@ -231,6 +250,78 @@ class DMARRTAgent(Agent):
         tree_marker.color.a = 1.0
 
         return tree_marker
+
+    def at_goal(self):
+        """
+        Checks if the agent's current location is the goal location.
+        """
+        dist = np.sqrt(
+            (self.pos[0] - self.goal[0]) ** 2 + (self.pos[1] - self.goal[1]) ** 2
+        )
+        if dist <= 0.3:
+            return True
+        return False
+
+    def update_time(self, curr_time):
+        """
+        Update the internal time counter.
+        """
+        self.curr_time = curr_time
+
+    def create_new_plan(self):
+        """
+        Spin RRT to create a new plan
+
+        Returns:
+            Path
+        """
+        # Refresh environment to reflect agent's current positions
+        # TODO(marcus): handled by tf tree!
+        # self.rrt.update_pos(self.pos, self.curr_time, wipe_tree=True)
+
+        # Grow the tree by one set of iterations
+        self.rrt.spin(False)
+
+        # Find the new best path in the tree
+        return self.rrt.get_path()
+
+    @staticmethod
+    def multiagent_aware_time_realloc(path, other_agent_plans):
+        """ Allocates more time to nodes in a path that conflict with other
+            agent nodes, s.t. the conflict is gone.
+
+            Only tokenholders should use this, to prevent duplicate conflict
+            resolution.
+
+            Args:
+                path: a Path object.
+                other_agent_plans: a dictionary keyed by Agent ID containing
+                    the current Path objects of other agents in the scenario.
+            Returns:
+                a Path object similar to `path` but with collision-free
+                    timestamps on each node.
+        """
+        for i in range(1,len(path.nodes)):
+            # Check for collisions with any other node:
+            for id, other_path in other_agent_plans.items():
+                if other_path:
+                    curr_stamp = path.nodes[i].stamp
+                    if curr_stamp in other_path.ts_dict.keys():
+                        if path.nodes[i] == other_path.ts_dict[curr_stamp]:
+                            # Collision detected! Allocate more time to this node.
+
+                            revised_stamp = curr_stamp
+                            while path.nodes[i] == other_path.ts_dict[revised_stamp]:
+                                revised_stamp += 1
+                                path.nodes[i].stamp = revised_stamp
+
+                            # Update all nodes after that one to have higher timetsamps.
+                            for node in path.nodes[i+1:]:
+                                revised_stamp += 1
+                                node.stamp = revised_stamp
+
+        path.ts_dict = {node.stamp : node for node in path.nodes}
+        return path
 
 
 if __name__ == "__main__":

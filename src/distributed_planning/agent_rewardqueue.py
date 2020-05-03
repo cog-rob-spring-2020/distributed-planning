@@ -1,9 +1,13 @@
 #!/usr/bin/env python
+import random
 import rospy
-from agent import Agent
+import yaml
+from distributed_planning.msg import *
+from agent_dmarrt import DMARRTAgent
+from environment import Environment
+from plan import Plan
 
-
-class RewardQueueAgent(Agent):
+class RewardQueueAgent(DMARRTAgent):
     """
     An Agent that picks goals from a reward queue for distributed path planning
     """
@@ -11,74 +15,67 @@ class RewardQueueAgent(Agent):
     def __init__(self, *args, **kwargs):
         super(RewardQueueAgent, self).__init__(args, kwargs)
 
-        self.identifier = rospy.get_name()
-
-        self.peer_pub = rospy.Publisher("peers", PlanBid, queue_size=10)
-        self.bid_pub = rospy.Publisher("plan_bids", PlanBid, queue_size=10)
-        self.waypoints_pub = rospy.Publisher("waypoints", Waypoints, queue_size=10)
-
-        # Register as listener for different kinds of messages
-        rospy.Subscriber("registration", Registration, self.received_id)
-        rospy.Subscriber("plan_bids", PlanBid, self.received_bid)
-        rospy.Subscriber("waypoints", Waypoints, self.received_waypoints)
-
-        # let the other agents know a new agent is on the network
-        registration_pub = rospy.Publisher("registration", Registration)
-        registration_pub.publish(rospy.get_name())
-
-        # TODO: how should this be updated?
-        self.curr_time = 0.0  # Simulation time. Updated externally
-
-        # Keeps track of other agents' current bids for PPI
-        #     (potential path improvement) at any given time:
-        self.bids = {}
-        self.token_holder = False
-
-        # TODO: new attributes needed for new pseudocode
-        # (fix these and place them in positions that make sense)
-        self.replan_token_holder = False
-        self.goal_token_holder = False
-        self.replan_bids = {}
+        # Keeps track of other agents' current goal bids at any given time
         self.goal_bids = {}
+
+        # whether or not this agent is holding the goal token
+        self.goal_token_holder = False
+        
+        #list of goals organized in an order
         self.queue = []
 
-    def received_id(self, msg):
-        """
-        TODO
-        """
-        if msg.sender_id != self.identifier:
-            self.bids[msg.sender_id] = 0.0
-            self.other_agent_plans[msg.sender_id] = Path()
+        self.second_plan = None #for path from goal to second goal
+        self.second_goal = None
 
-    def received_replan_bid(self, msg):
+        #Adding goals
+        rospy.Subscriber("add_goal", Goal, self.received_add_goal)
+
+        #Removing goals
+        rospy.Subscriber("remove_goal", Goal, self.received_remove_goal)
+
+        #goal and winner
+        rospy.Subscriber("goal_and_winner", GoalWinner, self.received_remove_goal_and_goal_winner)
+        self.goal_and_winner_pub = rospy.Publisher("goal_and_winner", GoalWinner, queue_size=10)
+
+        #goal bids
+        rospy.Subscriber("goal_bids", GoalBid, self.received_goal_bid)
+        self.goal_bid_pub = rospy.Publisher("goal_bids", GoalBid, queue_size=10)
+
+    ####################################################################
+
+    def broadcast_remove_goal_and_goal_winner(self, winner_id, goal_id):
         """
-        Update internal state to reflect other agent's PPI bid.
+        Broadcasts the following message to the TODO topic:
 
-        msg - message of type PlanBid
-        msg.sender_id - unique ID of the agent who sent the message
-        msg.bid - agent's PPI (potential path improvement) for current
-        planning iteration
+        msg - message of type TODO (GoalWinner?)
+        msg.sender_id - this agent's unique ID
+        msg.winner_id - unique ID of the agent who has won the goal
+         claiming token, given by `winner_id`
+        msg.goal_id - location of goal just claimed by this agent (so
+         all others can remove from their queues)
         """
-        if msg.sender_id != self.identifier:
-            self.replan_bids[msg.sender_id] = msg.bid
+        msg = GoalWinner()
+        msg.sender_id = self.identifier
+        msg.winner_id = winner_id
+        msg.goal_id = goal_id
+        self.goal_and_winner_pub.publish(msg)
 
-    def received_waypoints_and_replan_winner(self, msg):
+    def broadcast_goal_bid(self, bid, bid_goal):
         """
-        Update internal state to reflect constraints based on
-        other agent's new planned path.
+        Broadcasts the following message to the TODO topic:
 
-        Also, if winner, update internal state to hold the token.
-
-        msg - message of type TODO (blend of Waypoints/TokenHolder)
-        msg.sender_id - unique ID of the agent who sent the message
-        msg.winner_id - unique ID of the agent who has won the replanning token
-        msg.locations - path of waypoints
+        msg - message of type TODO (GoalBid?)
+        msg.sender_id - this agent's unique ID
+        msg.bid - agent's bid (reward - cost to get to goal) for current favorite goal in queue, given by `bid`
+        msg.goal_id - location of the goal this agent is bidding on, given by `bid_goal`
         """
-        if msg.sender_id != self.identifier:
-            self.other_agent_plans[msg.sender_id] = msg.locations
+        msg = GoalBid()
+        msg.sender_id = self.identifier
+        msg.bid = bid
+        msg.goal_id = bid_goal
+        self.goal_bid_pub.publish(msg)
 
-        if msg.winner_id == self.identifier:
-            self.replan_token_holder = True
+    ####################################################################
 
     def received_remove_goal_and_goal_winner(self, msg):
         """
@@ -94,42 +91,64 @@ class RewardQueueAgent(Agent):
         if msg.winner_id == self.identifier:
             self.goal_token_holder = True
 
-        if msg.sender_id != self.identifier:
-            self.queue_remove(msg.goal_id)
+        self.queue_remove(msg.goal_id)
 
-    def broadcast_replan_bid(self, bid):
+    def received_goal_bid(self, msg):
         """
-        Broadcasts the following message to the TODO topic:
-
-        msg - message of type PlanBid
-        msg.sender_id - this agent's unique ID
-        msg.bid - this agent's PPI, given by `bid`
-        """
-        pass
-
-    def broadcast_remove_goal_and_goal_winner(self, winner_id):
-        """
-        Broadcasts the following message to the TODO topic:
-
-        msg - message of type TODO (GoalWinner?)
-        msg.sender_id - this agent's unique ID
-        msg.winner_id - unique ID of the agent who has won the goal
-         claiming token, given by `winner_id`
-        msg.goal_id - location of goal just claimed by this agent (so
-         all others can remove from their queues)
-        """
-        pass
-
-    def broadcast_goal_bid(self, bid, bid_goal):
-        """
-        Broadcasts the following message to the TODO topic:
-
+        Update internal state to reflect other agent's bid
+        on the first goal in the queue.
         msg - message of type TODO (GoalBid?)
-        msg.sender_id - this agent's unique ID
-        msg.bid - agent's bid (reward - cost to get to goal) for current favorite goal in queue, given by `bid`
-        msg.goal_id - location of the goal this agent is bidding on, given by `bid_goal`
+        msg.sender_id - unique ID of the agent who sent the message
+        msg.bid - agent's bid (reward - cost to get to goal) for current first goal in queue
+        msg.goal_id - location of the goal other agent is bidding on
+        """
+        if msg.sender_id != self.identifier:
+            self.goal_bids[msg.sender_id] = (msg.bid, msg.goal_id)
+
+    def received_add_goal(self, msg):
+        """
+        Add the new goal to internal representation of goal queue,
+        updating queue to remain sorted by reward.
+        This message comes from the process that is adding/removing
+        goals to the queue, modeling something like adaptive
+        sampling (thus there is no sender ID because a single
+        agent did not send the message in our implementation).
+        msg - message of type TODO (Goal)
+        msg.goal_id - location of the goal to be added
+        msg.reward - reward associated with that goal (e.g. from adaptive sampling)
+        """
+        self.queue_insert(msg.goal_id, msg.goal_reward)
+
+    def received_remove_goal(self, msg):
+        """
+        Remove the specified goal from internal representation of goal
+        queue, updating queue to remain sorted by reward.
+        This message comes from the process that is adding/removing
+        goals to the queue, modeling something like adaptive
+        sampling (thus there is no sender ID because a single
+        agent did not send the message in our implementation).
+        msg - message of type TODO (Goal)
+        msg.goal_id - location of the goal to be removed
+        msg.reward - reward associated with that goal (e.g. from adaptive sampling)
+        """
+        self.queue_remove(msg.goal_id)
+
+    ####################################################################
+
+    def queue_insert(self, goal, reward):
+        """
+        Add the goal to the queue attribute, keeping the queue
+        sorted by TODO (reward, priority, etc.)
         """
         pass
+
+    def queue_remove(self, goal):
+        """
+        Remove the goal from the queue attribute.
+        """
+        pass
+
+    ####################################################################
 
     def spin_once(self):
         """
@@ -137,31 +156,44 @@ class RewardQueueAgent(Agent):
 
         The interaction component is handled using Agent callbacks.
         """
-        self.dma_individual()
+
+        # TODO: do we need a timeout here instead of rrt_iters???
+        new_plan = self.create_new_plan()
 
         # Assign first "current path" found
         if not self.curr_plan.nodes:
             self.curr_plan = new_plan
         self.best_plan = new_plan
 
-        if self.token_holder:
+        if self.plan_token_holder:
             # Replan to new best path
             self.curr_plan = self.best_plan
 
             # Solve collisions with time reallocation
             self.curr_plan = Plan.multiagent_aware_time_realloc(
-                self.curr_plan, self.other_agent_plans
+                self.curr_plan, self.peer_waypoints
             )
 
             # Broadcast the new winner of the bidding round
-            if self.bids:
-                self.token_holder = False
-                winner_bid = max(self.bids.values())
-                winner_ids = [id for id, bid in self.bids.items() if bid == winner_bid]
+            winner_id = self.identifier #default to being the winner again
+            if len(self.plan_bids) > 0:
+                # select a winner based on bids
+                winner_bid = max(self.plan_bids.values())
+                winner_ids = [id for id, bid in self.plan_bids.items() if bid == winner_bid]
+                # break bid ties with randomness
                 winner_id = random.choice(winner_ids)
-                self.broadcast_waypoints(winner_id)
+                self.plan_token_holder = False
+
+            # broadcast own waypoints and new token holder
+            msg = Waypoints()
+            msg.sender_id = self.identifier
+            msg.winner_id = winner_id
+            msg.waypoints = self.best_plan
+            self.waypoints_pub.publish(msg)
+
         else:
-            self.broadcast_bid(self.curr_plan.cost - self.best_plan.cost)
+            self.broadcast_replan_bid(self.curr_plan.cost - self.best_plan.cost)
+
 
         """
         TODO:
@@ -180,35 +212,37 @@ class RewardQueueAgent(Agent):
 
         # Prevent agent from getting the token if they finish.
         if self.at_goal():
-            self.broadcast_bid(-1000.0)
+            # no more replanning necessary!
+            self.broadcast_replan_bid(-1000.0)
+
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        program="agent", description="Run an agent ROS node."
+    env_file = rospy.get_param("/env_file")
+    has_token = rospy.get_param("~has_token", False)
+
+    start_pos = (0.0, 0.0)
+    goal_pos = (10.0, 10.0)
+
+    lunar_env = Environment()
+    lunar_env.parse_yaml_data(yaml.safe_load(env_file))
+    lunar_env.calculate_scene_dimensions()
+
+    goal_dist = 0.1
+    rrt_iters = 10
+
+    rospy.init_node("agent", anonymous=True, log_level=rospy.DEBUG)
+
+    # TODO: pass a callback to get the current time?
+    agent = DMARRTAgent(
+        start_pos=start_pos,
+        goal_pos=goal_pos,
+        environment=lunar_env,
+        goal_dist=goal_dist,
+        rrt_iters=rrt_iters,
     )
-    parser.add_argument("lunar_env", nargs=1)
 
-    try:
-        args = parser.parse_args()
-        print args
-
-        mode = "normal"
-        start_pos = (0.0, 0.0)
-        goal_pos = (10.0, 10.0)
-        lunar_env = Environment()
-        lunar_env.load_from_yaml_file(args.lunar_env)
-        goal_dist = 0.1
-        rrt_iters = 10
-
-        rospy.init_node("agent", anonymous=True)
-        agent = RewardQueueAgent(
-            mode, start_pos, goal_pos, lunar_env, goal_dist, rrt_iters
-        )
-
-        rate = rospy.Rate(10)
-        while not rospy.is_shutdown():
-            agent.spin_once()
-            rate.sleep()
-    except:
-        parser.print_help()
+    rate = rospy.Rate(10)
+    while not rospy.is_shutdown():
+        agent.spin_once()
+        rate.sleep()

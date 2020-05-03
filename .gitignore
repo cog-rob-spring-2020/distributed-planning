@@ -2,9 +2,12 @@
 .vscode/
 
 # Byte-compiled / optimized / DLL files
-__pycache__/
+*__pycache__/
 *.py[cod]
 *$py.class
+
+# Apple :(
+*.DS_STORE
 
 # C extensions
 *.so

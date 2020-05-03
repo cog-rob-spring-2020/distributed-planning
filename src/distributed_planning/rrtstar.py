@@ -3,13 +3,11 @@
 
     This is intended for use with a 2D map.
 """
-
 import numpy as np
 import random
 import copy
 import rospy
-
-from environment import Environment
+import tf.transformations as transformations
 
 
 class Node(object):
@@ -82,7 +80,7 @@ class Path:
             self.cost = self.nodes[-1].cost
             if not self.is_complete:
                 self.cost += penalty  # Incomplete costs more than complete
-                self.dist_to_goal = self.dist_between_nodes(self.nodes[-1],
+                self.dist_to_goal = Path.dist_between_nodes(self.nodes[-1],
                                                             NodeStamped(self.goal_node))
 
         # There is no frozendict! Do not modify this!
@@ -101,7 +99,8 @@ class Path:
 
         return writ
 
-    def dist_between_nodes(self, from_node, to_node):
+    @staticmethod
+    def dist_between_nodes(from_node, to_node):
         """ Compute the Euclidean distance between two nodes. """
         dx = from_node.x - to_node.x
         dy = from_node.y - to_node.y
@@ -130,11 +129,16 @@ class Path:
 
 class RRTstar:
     def __init__(self, start, goal, env, goal_dist=0.5, goal_sample_rate=0.7,
-                 path_resolution=0.1, connect_circle_dist=5.0, max_iter=1000):
+                 step_size=0.1, near_radius=5.0, max_iter=1000):
         # Planner states
         self.start = Node(start[0], start[1])
         self.goal = Node(goal[0], goal[1])
-        self.env = env
+
+        self.map = None
+        self.map_metadata = None
+        self.map_bounds = None
+        self.setup_map(env)
+
         self.curr_iter = 0
         self.node_list = [self.start]
         self.found_complete_path = False
@@ -143,8 +147,8 @@ class RRTstar:
         # Planner parameters
         self.goal_dist = goal_dist
         self.goal_sample_rate = goal_sample_rate
-        self.path_resolution = path_resolution
-        self.connect_circle_dist = connect_circle_dist
+        self.step_size = step_size
+        self.near_radius = near_radius
         self.max_iter = max_iter
 
         # Persistent states
@@ -172,13 +176,15 @@ class RRTstar:
         new_node = self.steer(near_node, rand_node)
 
         if new_node is not None:
-            if self.env.collision_free(new_node.x, new_node.y):
+            if not self.check_collision_line(near_node, new_node):
+                new_node.parent = near_node
+                new_node.cost = RRTstar.compute_new_cost(near_node, new_node)
+
                 near_ids = self.get_near_node_ids(new_node)
                 new_node = self.choose_parent(new_node, near_ids)
 
-                if new_node:
-                    self.node_list.append(new_node)
-                    self.rewire(new_node, near_ids)
+                self.node_list.append(new_node)
+                self.rewire(new_node, near_ids)
 
             if return_first_path and new_node:
                 return self.get_path()
@@ -190,55 +196,45 @@ class RRTstar:
         new_node = Node(from_node.x, from_node.y)
         d, theta = RRTstar.calc_dist_and_angle(new_node, to_node)
 
-        new_node.path_x = [new_node.x]
-        new_node.path_y = [new_node.y]
+        step = self.step_size
+        if step > d:
+            step = d
 
-        extend_length = self.goal_dist
-        if extend_length > d:
-            extend_length = d
-
-        n_expand = np.floor(extend_length / self.path_resolution)
-        for _ in range(int(n_expand)):
-            new_node.x += self.path_resolution * np.cos(theta)
-            new_node.y += self.path_resolution * np.sin(theta)
-            new_node.path_x.append(new_node.x)
-            new_node.path_y.append(new_node.y)
-
-        d, _ = RRTstar.calc_dist_and_angle(new_node, to_node)
-        if d <= self.path_resolution:
-            new_node.path_x.append(to_node.x)
-            new_node.path_y.append(to_node.y)
-
-        new_node.parent = from_node
+        new_node.x += step * np.cos(theta)
+        new_node.y += step * np.sin(theta)
 
         if new_node != from_node:
-            return new_node
+            if not self.check_collision_line(new_node, from_node):
+                new_node.parent = from_node
+                return new_node
 
         return None
 
     def choose_parent(self, new_node, near_ids):
         """ Choose parent for the new node based on nearest nodes. """
         if not near_ids:
-            return None
+            new_node
 
         costs = []
         for id in near_ids:
             near_node = self.node_list[id]
-            t_node = self.steer(near_node, new_node)
+            # t_node = self.steer(near_node, new_node)
 
-            if t_node and self.env.collision_free(t_node.x, t_node.y):
+            # if t_node and not self.check_collision_line(new_node, t_node):
+            if near_node and \
+                    not self.check_collision_line(near_node, new_node) and \
+                    near_node != new_node:
                 costs.append(RRTstar.compute_new_cost(near_node, new_node))
             else:
                 costs.append(np.inf)  # Collision nodes have inf cost.
 
-        min_cost = min(costs)
-        if min_cost == np.inf:
-            return None
-
-        min_id = near_ids[costs.index(min_cost)]
-        new_node = self.steer(self.node_list[min_id], new_node)
-        new_node.parent = self.node_list[min_id]
-        new_node.cost = min_cost
+        if len(costs) > 0:
+            min_cost = min(costs)
+            if min_cost != np.inf:
+                min_id = near_ids[costs.index(min_cost)]
+                # new_node = self.steer(self.node_list[min_id], new_node)
+                new_node.parent = self.node_list[min_id]
+                new_node.cost = min_cost
 
         return new_node
 
@@ -258,7 +254,7 @@ class RRTstar:
         for id in goal_ids:
             t_node = self.steer(self.node_list[id], self.goal)
 
-            if t_node and self.env.collision_free(t_node.x, t_node.y):
+            if t_node and not self.check_collision_line(self.node_list[id], t_node):
                 safe_goal_ids.append(id)
 
         if len(safe_goal_ids) != 0:
@@ -279,7 +275,7 @@ class RRTstar:
                 edge_node.cost = RRTstar.compute_new_cost(new_node, near_node)
 
                 if near_node.cost > edge_node.cost and \
-                        self.env.collision_free(edge_node.x, edge_node.y):
+                        not self.check_collision_line(new_node, edge_node):
                     self.node_list[id] = edge_node
                     self.propagate_cost(new_node)
 
@@ -388,7 +384,7 @@ class RRTstar:
         path = Path(path_nodes,
                     NodeStamped(self.start),
                     NodeStamped(self.goal),
-                    2.0 * max(self.env.bounds))
+                    2.0 * max(self.map_bounds[0][1] ,self.map_bounds[1][1]))
         return path
 
     def allocate_time(self, nodes, start_time):
@@ -419,8 +415,8 @@ class RRTstar:
     def get_rand_node(self):
         """ Return a random Node object within the prescribed confines. """
         if random.randint(0, 100) > self.goal_sample_rate:
-            node = Node(random.uniform(self.env.bounds[0], self.env.bounds[2]),
-                        random.uniform(self.env.bounds[1], self.env.bounds[3]))
+            node = Node(random.uniform(self.map_bounds[0][0], self.map_bounds[0][1]),
+                        random.uniform(self.map_bounds[1][0], self.map_bounds[1][1]))
 
         else:
             node = Node(self.goal.x, self.goal.y)
@@ -438,8 +434,7 @@ class RRTstar:
     def get_near_node_ids(self, new_node):
         """ Return all near nodes in the nodelist to the input node. """
         n = len(self.node_list) + 1
-        r = self.connect_circle_dist * np.sqrt((np.log(n) / n))
-        r = min(r, self.goal_dist)
+        r = self.near_radius * np.sqrt((np.log(n) / n))
 
         dist_list = [(node.x - new_node.x)**2 + (node.y - new_node.y)**2
                      for node in self.node_list]
@@ -485,3 +480,80 @@ class RRTstar:
                 self.start = new_pos
                 self.curr_iter = 0
                 self.node_list = [self.start]
+
+    def setup_map(self, env):
+        """
+        """
+        self.map = self.convert_map(env)
+        self.map_metadata = env.info
+        res = self.map_metadata.resolution
+
+        maxx = (self.map_metadata.origin.position.x + float(self.map_metadata.width) / 2) * res
+        maxy = (self.map_metadata.origin.position.y + float(self.map_metadata.height) / 2) * res
+        minx = maxx - (self.map_metadata.width * res)
+        miny = maxy - (self.map_metadata.height * res)
+        self.map_bounds = ((minx, maxx), (miny, maxy))
+
+    def check_collision_point(self, x, y):
+        """
+        """
+        map_pos = self.convert_point_to_map((x, y))
+        return self.map[map_pos[0]][map_pos[1]] > 0
+
+    def check_collision_line(self, node1, node2):
+        """
+        """
+        map_pos1 = self.convert_point_to_map((node1.x, node1.y))
+        map_pos2 = self.convert_point_to_map((node2.x, node2.y))
+
+        minx = min(map_pos1[0], map_pos2[0])
+        miny = min(map_pos1[1], map_pos2[1])
+        maxx = max(map_pos1[0], map_pos2[0])
+        maxy = max(map_pos1[1], map_pos2[1])
+
+        if (minx == maxx and miny == maxy):
+            return self.check_collision_point(node1.x, node1.y)
+        
+        if (maxx - minx) > (maxy - miny):
+            for x in range(minx, maxx+1):
+                y = (map_pos2[1] - map_pos1[1]) * (x - minx) / (maxx - minx) + map_pos1[1]
+                if self.map[x][y] > 0:
+                    return True
+        else:
+            for y in range(miny, maxy+1):
+                x = (map_pos2[0] - map_pos1[0]) * (y - miny) / (maxy - miny) + map_pos1[0]
+                if self.map[x][y] > 0:
+                    return True
+
+        return False
+    
+    def convert_point_to_map(self, pos):
+        """
+        """
+        x = pos[0]
+        y = pos[1]
+
+        x -= self.map_metadata.origin.position.x
+        y -= self.map_metadata.origin.position.y
+        roll, pitch, yaw = transformations.euler_from_quaternion([
+            self.map_metadata.origin.orientation.x,
+            self.map_metadata.origin.orientation.y,
+            self.map_metadata.origin.orientation.z,
+            self.map_metadata.origin.orientation.w]
+        )
+
+        # x = x * np.cos(yaw) + y * np.sin(yaw)
+        # y = -x * np.sin(yaw) + y * np.cos(yaw)
+
+        return (int(x / self.map_metadata.resolution),
+                int(y / self.map_metadata.resolution))
+
+    def convert_map(self, map):
+        """
+        """
+        height = map.info.height
+        width = map.info.width
+
+        new_map = np.transpose(np.reshape(map.data, (height, width)))
+
+        return new_map

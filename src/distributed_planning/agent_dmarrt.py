@@ -32,7 +32,7 @@ class DMARRTAgent(Agent):
         goal_dist = agent_params['goal_dist']
         rrt_iters = agent_params['rrt_iters']
         step_size = agent_params['step_size']
-        ccd = agent_params['connect_circle_dist']
+        ccd = agent_params['near_radius']
         self.spin_rate = agent_params['spin_rate']
 
         # get map data from server

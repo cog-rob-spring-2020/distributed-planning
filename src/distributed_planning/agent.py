@@ -36,7 +36,7 @@ class Agent(object):
 
         self.rrt = RRTstar(
             self.start, self.goal, environment, goal_dist,
-            step_size=step, connect_circle_dist=ccd, max_iter=rrt_iters
+            step_size=step, near_radius=ccd, max_iter=rrt_iters
         )
         self.goal_dist = goal_dist
         # curr_plan is the currently executing plan; best_plan is a

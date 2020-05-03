@@ -132,21 +132,17 @@ class Path:
 
 class RRTstar:
     def __init__(self, start, goal, env, goal_dist=0.5, goal_sample_rate=0.7,
-                 step_size=0.1, connect_circle_dist=5.0, max_iter=1000):
+                 step_size=0.1, near_radius=5.0, max_iter=1000):
         # Planner states
         self.start = Node(start[0], start[1])
         self.goal = Node(goal[0], goal[1])
 
-        self.map = self.convert_map(env)
-        self.map_metadata = env.info
-        maxx = (self.map_metadata.origin.position.x + float(self.map_metadata.width) / 2) * self.map_metadata.resolution
-        maxy = (self.map_metadata.origin.position.y + float(self.map_metadata.height) / 2) * self.map_metadata.resolution
-        minx = maxx - (self.map_metadata.width * self.map_metadata.resolution)
-        miny = maxy - (self.map_metadata.height * self.map_metadata.resolution)
-        self.map_bounds = ((minx, maxx), (miny, maxy))
+        self.map = None
+        self.map_metadata = None
+        self.map_bounds = None
+        self.setup_map(env)
 
-        print(self.map_bounds)
-        print(self.map_metadata)
+        print("map_bounds: ", self.map_bounds)
 
         self.curr_iter = 0
         self.node_list = [self.start]
@@ -157,7 +153,7 @@ class RRTstar:
         self.goal_dist = goal_dist
         self.goal_sample_rate = goal_sample_rate
         self.step_size = step_size
-        self.connect_circle_dist = connect_circle_dist
+        self.near_radius = near_radius
         self.max_iter = max_iter
 
         # Persistent states
@@ -185,14 +181,15 @@ class RRTstar:
         new_node = self.steer(near_node, rand_node)
 
         if new_node is not None:
-            if not self.check_collision_point(new_node.x, new_node.y):
-                near_ids = self.get_near_node_ids(new_node)
-                paired_new_node = self.choose_parent(new_node, near_ids)
+            if not self.check_collision_line(near_node, new_node):
+                new_node.parent = near_node
+                new_node.cost = RRTstar.compute_new_cost(near_node, new_node)
 
-                if paired_new_node and (paired_new_node != new_node):
-                    new_node = paired_new_node
-                    self.node_list.append(new_node)
-                    self.rewire(new_node, near_ids)
+                near_ids = self.get_near_node_ids(new_node)
+                new_node = self.choose_parent(new_node, near_ids)
+
+                self.node_list.append(new_node)
+                self.rewire(new_node, near_ids)
 
             if return_first_path and new_node:
                 return self.get_path()
@@ -212,37 +209,37 @@ class RRTstar:
         new_node.y += step * np.sin(theta)
 
         if new_node != from_node:
-            new_node.parent = from_node
-            return new_node
+            if not self.check_collision_line(new_node, from_node):
+                new_node.parent = from_node
+                return new_node
 
         return None
 
     def choose_parent(self, new_node, near_ids):
         """ Choose parent for the new node based on nearest nodes. """
         if not near_ids:
-            return None
+            new_node
 
         costs = []
         for id in near_ids:
-            if self.node_list[id] != new_node:
-                near_node = self.node_list[id]
-                t_node = self.steer(near_node, new_node)
+            near_node = self.node_list[id]
+            # t_node = self.steer(near_node, new_node)
 
-                if t_node and not self.check_collision_line(new_node, t_node):
-                    costs.append(RRTstar.compute_new_cost(near_node, new_node))
-                else:
-                    # print('failed collision check:', str(t_node))
-                    costs.append(np.inf)  # Collision nodes have inf cost.
+            # if t_node and not self.check_collision_line(new_node, t_node):
+            if near_node and \
+                    not self.check_collision_line(near_node, new_node) and \
+                    near_node != new_node:
+                costs.append(RRTstar.compute_new_cost(near_node, new_node))
+            else:
+                costs.append(np.inf)  # Collision nodes have inf cost.
 
-        min_cost = min(costs)
-        if min_cost == np.inf:
-            # print("min cost is inf")
-            return None
-
-        min_id = near_ids[costs.index(min_cost)]
-        new_node = self.steer(self.node_list[min_id], new_node)
-        new_node.parent = self.node_list[min_id]
-        new_node.cost = min_cost
+        if len(costs) > 0:
+            min_cost = min(costs)
+            if min_cost != np.inf:
+                min_id = near_ids[costs.index(min_cost)]
+                # new_node = self.steer(self.node_list[min_id], new_node)
+                new_node.parent = self.node_list[min_id]
+                new_node.cost = min_cost
 
         return new_node
 
@@ -442,8 +439,7 @@ class RRTstar:
     def get_near_node_ids(self, new_node):
         """ Return all near nodes in the nodelist to the input node. """
         n = len(self.node_list) + 1
-        r = self.connect_circle_dist * np.sqrt((np.log(n) / n))
-        r = min(r, self.goal_dist)
+        r = self.near_radius * np.sqrt((np.log(n) / n))
 
         dist_list = [(node.x - new_node.x)**2 + (node.y - new_node.y)**2
                      for node in self.node_list]
@@ -490,6 +486,19 @@ class RRTstar:
                 self.curr_iter = 0
                 self.node_list = [self.start]
 
+    def setup_map(self, env):
+        """
+        """
+        self.map = self.convert_map(env)
+        self.map_metadata = env.info
+        res = self.map_metadata.resolution
+
+        maxx = (self.map_metadata.origin.position.x + float(self.map_metadata.width) / 2) * res
+        maxy = (self.map_metadata.origin.position.y + float(self.map_metadata.height) / 2) * res
+        minx = maxx - (self.map_metadata.width * res)
+        miny = maxy - (self.map_metadata.height * res)
+        self.map_bounds = ((minx, maxx), (miny, maxy))
+
     def check_collision_point(self, x, y):
         """
         """
@@ -510,36 +519,36 @@ class RRTstar:
         if (minx == maxx and miny == maxy):
             return self.check_collision_point(node1.x, node1.y)
         
-        # if (maxx - minx) > (maxy - miny):
-        #     for x in range(minx, maxx+1):
-        #         y = (map_pos2[1] - map_pos1[1]) * (x - minx) / (maxx - minx) + map_pos1[1]
-        #         if self.map[x][y] > 0:
-        #             return True
-        # else:
-        #     for y in range(miny, maxy+1):
-        #         x = (map_pos2[0] - map_pos1[0]) * (y - miny) / (maxy - miny) + map_pos1[0]
-        #         if self.map[x][y] > 0:
-        #             return True
+        if (maxx - minx) > (maxy - miny):
+            for x in range(minx, maxx+1):
+                y = (map_pos2[1] - map_pos1[1]) * (x - minx) / (maxx - minx) + map_pos1[1]
+                if self.map[x][y] > 0:
+                    return True
+        else:
+            for y in range(miny, maxy+1):
+                x = (map_pos2[0] - map_pos1[0]) * (y - miny) / (maxy - miny) + map_pos1[0]
+                if self.map[x][y] > 0:
+                    return True
 
-        m_new = 2 * np.abs(miny - maxy)
-        slope_error_new = m_new - (maxx - minx)
-        y = maxy
-        for x in range(minx, maxx+1):
-            if self.map[x][y] > 0:
-                return True
-            if self.map[x-1][y] > 0:
-                return True
-            if self.map[x+1][y] > 0:
-                return True
-            if self.map[x][y-1] > 0:
-                return True
-            if self.map[x][y+1] > 0:
-                return True
+        # m_new = 2 * np.abs(miny - maxy)
+        # slope_error_new = m_new - (maxx - minx)
+        # y = maxy
+        # for x in range(minx, maxx+1):
+        #     if self.map[x][y] > 0:
+        #         return True
+        #     if self.map[x-1][y] > 0:
+        #         return True
+        #     if self.map[x+1][y] > 0:
+        #         return True
+        #     if self.map[x][y-1] > 0:
+        #         return True
+        #     if self.map[x][y+1] > 0:
+        #         return True
             
-            slope_error_new += m_new
-            if slope_error_new >= 0:
-                y -= 1
-                slope_error_new -= 2 * (maxx - minx)
+        #     slope_error_new += m_new
+        #     if slope_error_new >= 0:
+        #         y -= 1
+        #         slope_error_new -= 2 * (maxx - minx)
 
         return False
     

@@ -1,0 +1,56 @@
+# Parameters for all agents
+
+agent_1:
+  start_pos:
+    x: 0.0
+    y: 0.0
+  goal_pos:
+    x: 0.0
+    y: 5.0
+  goal_dist: 0.1
+  rrt_iters: 10
+  spin_rate: 10
+
+agent_2:
+  start_pos:
+    x: 0.0
+    y: 1.0
+  goal_pos:
+    x: 0.0
+    y: 10.0
+  goal_dist: 0.1
+  rrt_iters: 10
+  spin_rate: 10
+
+agent_3:
+  start_pos:
+    x: 0.0
+    y: 1.0
+  goal_pos:
+    x: 0.0
+    y: 5.0
+  goal_dist: 0.1
+  rrt_iters: 10
+  spin_rate: 10
+
+agent_4:
+  start_pos:
+    x: 0.0
+    y: 1.0
+  goal_pos:
+    x: 0.0
+    y: 5.0
+  goal_dist: 0.1
+  rrt_iters: 10
+  spin_rate: 10
+
+agent_5:
+  start_pos:
+    x: 0.0
+    y: 1.0
+  goal_pos:
+    x: 0.0
+    y: 5.0
+  goal_dist: 0.1
+  rrt_iters: 10
+  spin_rate: 10

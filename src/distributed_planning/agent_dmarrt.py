@@ -48,7 +48,7 @@ class DMARRTAgent(Agent):
         self.curr_time = 0.0  # Simulation time. Updated externally
 
         # be ready for replanning bids
-        rospy.Subscriber("plan_bids", PlanBid, self.received_plan_bid)
+        rospy.Subscriber("plan_bids", PlanBid, self.plan_bid_cb)
         self.plan_bid_pub = rospy.Publisher("plan_bids", PlanBid, queue_size=10)
 
         # be ready for updated waypoints from the winner
@@ -73,29 +73,11 @@ class DMARRTAgent(Agent):
         self.tree_marker = self.setup_tree_marker()
 
         rospy.loginfo(self.identifier + " has initialized.")
-
-        # TODO(marcus): remove:
-        rospy.Subscriber("/initialpose", PoseWithCovarianceStamped, self.coll_check)
         
         # Setup the spin
         rospy.Timer(rospy.Duration(1.0 / self.spin_rate), self.spin)
 
-    # TODO(marcus): verify that you don't need registration.
-    # def registration_cb(self, msg):
-    #     """
-    #     We met a peer, let's note that we're tracking their path
-    #     """
-    #     print('got reg:', msg)
-    #     if msg.frame_id != self.identifier:
-    #         self.peer_waypoints[msg.frame_id] = Path()
-    #         rospy.Subscriber(msg.frame_id + "/waypoints", PathRosMsg, self.waypoint_cb)
-
-    def coll_check(self, msg):
-        """
-        """
-        print(self.rrt.check_collision_point(msg.pose.pose.position.x, msg.pose.pose.position.y))
-
-    def received_plan_bid(self, msg):
+    def plan_bid_cb(self, msg):
         """
         Update internal state to reflect other agent's PPI bid.
 
@@ -138,15 +120,7 @@ class DMARRTAgent(Agent):
         broadcast its own new goal bid.
         """
         # TODO: do we need a timeout here instead of rrt_iters???
-        try:
-            new_plan = self.create_new_plan()
-        except RuntimeError as e:
-            print("\n")
-            print("len nodes:", len(self.rrt.node_list))
-            for node in self.rrt.node_list:
-                print("node:", str(node))
-                print("pare:", str(node.parent))
-            raise e
+        new_plan = self.create_new_plan()
         self.publish_rrt_tree(self.rrt.node_list)
 
         # Assign first "current path" found
@@ -232,18 +206,11 @@ class DMARRTAgent(Agent):
     def publish_rrt_tree(self, nodes):
         """
         """
-        # if not rospy.is_shutdown and self.rrt_tree_pub.get_num_connections() > 0:
-        if True:
+        if not rospy.is_shutdown() and self.rrt_tree_pub.get_num_connections() > 0:
             self.tree_marker.points = []
             self.tree_marker.header.stamp = rospy.Time.now()
 
-            # print("\n")
-            # print("len nodes:", len(nodes))
-
             for node in nodes:
-                # print("node:", str(node))
-                # print("pare:", str(node.parent))
-                # print("\n")
                 if node.parent:
                     self.tree_marker.points.append(Point(node.x, node.y, 0.0))
                     self.tree_marker.points.append(Point(node.parent.x, node.parent.y, 0.0))

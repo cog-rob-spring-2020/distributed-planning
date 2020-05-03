@@ -10,22 +10,22 @@
     <param name="name_prefix" value="agent_1"/>
   </node>
 
-  <!-- <node pkg="distributed_planning" type="agent_dmarrt.py" name="agent_2" output="screen">
+  <node pkg="distributed_planning" type="agent_dmarrt.py" name="agent_2" output="screen">
     <param name="name_prefix" value="agent_2"/>
   </node>
 
-  <node pkg="distributed_planning" type="agent_dmarrt.py" name="agent_3" output="screen">
+  <!-- <node pkg="distributed_planning" type="agent_dmarrt.py" name="agent_3" output="screen">
     <param name="name_prefix" value="agent_3"/>
   </node>
 
   <node pkg="distributed_planning" type="agent_dmarrt.py" name="agent_4" output="screen">
     <param name="name_prefix" value="agent_4"/>
-  </node>
+  </node> -->
 
   <node pkg="distributed_planning" type="agent_dmarrt.py" name="agent_5" output="screen">
     <param name="name_prefix" value="agent_5"/>
     <param name="has_token"   value="true"/>
-  </node> -->
+  </node>
 
   <!-- Map Server -->
   <node name="map_server" pkg="map_server" type="map_server"

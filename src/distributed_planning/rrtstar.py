@@ -142,8 +142,6 @@ class RRTstar:
         self.map_bounds = None
         self.setup_map(env)
 
-        print("map_bounds: ", self.map_bounds)
-
         self.curr_iter = 0
         self.node_list = [self.start]
         self.found_complete_path = False
@@ -529,26 +527,6 @@ class RRTstar:
                 x = (map_pos2[0] - map_pos1[0]) * (y - miny) / (maxy - miny) + map_pos1[0]
                 if self.map[x][y] > 0:
                     return True
-
-        # m_new = 2 * np.abs(miny - maxy)
-        # slope_error_new = m_new - (maxx - minx)
-        # y = maxy
-        # for x in range(minx, maxx+1):
-        #     if self.map[x][y] > 0:
-        #         return True
-        #     if self.map[x-1][y] > 0:
-        #         return True
-        #     if self.map[x+1][y] > 0:
-        #         return True
-        #     if self.map[x][y-1] > 0:
-        #         return True
-        #     if self.map[x][y+1] > 0:
-        #         return True
-            
-        #     slope_error_new += m_new
-        #     if slope_error_new >= 0:
-        #         y -= 1
-        #         slope_error_new -= 2 * (maxx - minx)
 
         return False
     

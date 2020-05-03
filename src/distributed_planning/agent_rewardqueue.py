@@ -1,11 +1,6 @@
 #!/usr/bin/env python
-import random
 import rospy
-import yaml
-from distributed_planning.msg import *
 from agent_dmarrt import DMARRTAgent
-from environment import Environment
-from plan import Plan
 
 class RewardQueueAgent(DMARRTAgent):
     """
@@ -13,8 +8,6 @@ class RewardQueueAgent(DMARRTAgent):
     """
 
     def __init__(self, *args, **kwargs):
-        super(RewardQueueAgent, self).__init__(args, kwargs)
-
         # Keeps track of other agents' current goal bids at any given time
         self.goal_bids = {}
 
@@ -28,18 +21,20 @@ class RewardQueueAgent(DMARRTAgent):
         self.second_goal = None
 
         #Adding goals
-        rospy.Subscriber("add_goal", Goal, self.received_add_goal)
+        rospy.Subscriber("add_goal", Goal, self.added_goal_cb)
 
         #Removing goals
-        rospy.Subscriber("remove_goal", Goal, self.received_remove_goal)
+        rospy.Subscriber("remove_goal", Goal, self.removed_goal_cb)
 
         #goal and winner
-        rospy.Subscriber("goal_and_winner", GoalWinner, self.received_remove_goal_and_goal_winner)
+        rospy.Subscriber("goal_and_winner", GoalWinner, self.remove_goal_and_winner_cb)
         self.goal_and_winner_pub = rospy.Publisher("goal_and_winner", GoalWinner, queue_size=10)
 
         #goal bids
-        rospy.Subscriber("goal_bids", GoalBid, self.received_goal_bid)
+        rospy.Subscriber("goal_bids", GoalBid, self.goal_bid_cb)
         self.goal_bid_pub = rospy.Publisher("goal_bids", GoalBid, queue_size=10)
+
+        super(RewardQueueAgent, self).__init__(args, kwargs)
 
     ####################################################################
 
@@ -77,7 +72,7 @@ class RewardQueueAgent(DMARRTAgent):
 
     ####################################################################
 
-    def received_remove_goal_and_goal_winner(self, msg):
+    def remove_goal_and_winner_cb(self, msg):
         """
         If winner, update internal state to hold the token.
 
@@ -93,7 +88,7 @@ class RewardQueueAgent(DMARRTAgent):
 
         self.queue_remove(msg.goal_id)
 
-    def received_goal_bid(self, msg):
+    def goal_bid_cb(self, msg):
         """
         Update internal state to reflect other agent's bid
         on the first goal in the queue.
@@ -105,7 +100,7 @@ class RewardQueueAgent(DMARRTAgent):
         if msg.sender_id != self.identifier:
             self.goal_bids[msg.sender_id] = (msg.bid, msg.goal_id)
 
-    def received_add_goal(self, msg):
+    def added_goal_cb(self, msg):
         """
         Add the new goal to internal representation of goal queue,
         updating queue to remain sorted by reward.
@@ -119,7 +114,7 @@ class RewardQueueAgent(DMARRTAgent):
         """
         self.queue_insert(msg.goal_id, msg.goal_reward)
 
-    def received_remove_goal(self, msg):
+    def removed_goal_cb(self, msg):
         """
         Remove the specified goal from internal representation of goal
         queue, updating queue to remain sorted by reward.
@@ -156,44 +151,7 @@ class RewardQueueAgent(DMARRTAgent):
 
         The interaction component is handled using Agent callbacks.
         """
-
-        # TODO: do we need a timeout here instead of rrt_iters???
-        new_plan = self.create_new_plan()
-
-        # Assign first "current path" found
-        if not self.curr_plan.nodes:
-            self.curr_plan = new_plan
-        self.best_plan = new_plan
-
-        if self.plan_token_holder:
-            # Replan to new best path
-            self.curr_plan = self.best_plan
-
-            # Solve collisions with time reallocation
-            self.curr_plan = Plan.multiagent_aware_time_realloc(
-                self.curr_plan, self.peer_waypoints
-            )
-
-            # Broadcast the new winner of the bidding round
-            winner_id = self.identifier #default to being the winner again
-            if len(self.plan_bids) > 0:
-                # select a winner based on bids
-                winner_bid = max(self.plan_bids.values())
-                winner_ids = [id for id, bid in self.plan_bids.items() if bid == winner_bid]
-                # break bid ties with randomness
-                winner_id = random.choice(winner_ids)
-                self.plan_token_holder = False
-
-            # broadcast own waypoints and new token holder
-            msg = Waypoints()
-            msg.sender_id = self.identifier
-            msg.winner_id = winner_id
-            msg.waypoints = self.best_plan
-            self.waypoints_pub.publish(msg)
-
-        else:
-            self.broadcast_replan_bid(self.curr_plan.cost - self.best_plan.cost)
-
+        super(RewardQueueAgent, self).spin_once()
 
         """
         TODO:
@@ -210,39 +168,9 @@ class RewardQueueAgent(DMARRTAgent):
         # else:
         #   bid on our favorite goal in the queue
 
-        # Prevent agent from getting the token if they finish.
-        if self.at_goal():
-            # no more replanning necessary!
-            self.broadcast_replan_bid(-1000.0)
-
-
 
 if __name__ == "__main__":
-    env_file = rospy.get_param("/env_file")
-    has_token = rospy.get_param("~has_token", False)
+    rospy.init_node("agent", anonymous=True)
+    agent = RewardQueueAgent()
 
-    start_pos = (0.0, 0.0)
-    goal_pos = (10.0, 10.0)
-
-    lunar_env = Environment()
-    lunar_env.parse_yaml_data(yaml.safe_load(env_file))
-    lunar_env.calculate_scene_dimensions()
-
-    goal_dist = 0.1
-    rrt_iters = 10
-
-    rospy.init_node("agent", anonymous=True, log_level=rospy.DEBUG)
-
-    # TODO: pass a callback to get the current time?
-    agent = DMARRTAgent(
-        start_pos=start_pos,
-        goal_pos=goal_pos,
-        environment=lunar_env,
-        goal_dist=goal_dist,
-        rrt_iters=rrt_iters,
-    )
-
-    rate = rospy.Rate(10)
-    while not rospy.is_shutdown():
-        agent.spin_once()
-        rate.sleep()
+    rospy.spin()

@@ -3,14 +3,11 @@
 
     This is intended for use with a 2D map.
 """
-
 import numpy as np
 import random
 import copy
 import rospy
 import tf.transformations as transformations
-
-from environment import Environment
 
 
 class Node(object):
@@ -558,11 +555,5 @@ class RRTstar:
         width = map.info.width
 
         new_map = np.transpose(np.reshape(map.data, (height, width)))
-        # np.abs(new_map)  # out-of-bounds becomes obstacles
-        # (new_map > 0).astype(int)  # Make all elements binary
-
-        # data = new_map * 255
-        # from scipy.misc import toimage
-        # toimage(data).show()
 
         return new_map

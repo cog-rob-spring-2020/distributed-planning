@@ -7,7 +7,7 @@ from rrtstar import Node, NodeStamped, RRTstar, Path
 
 
 class Agent(object):
-    def __init__(self, start_pos, goal_pos, environment, goal_dist, rrt_iters, path_res, ccd):
+    def __init__(self, start_pos, goal_pos, environment, goal_dist, rrt_iters, step, ccd):
         """
         Initializer for Agent class; represents a robot capable of
         planning and moving in an environment. Use as a base for decentralized
@@ -21,7 +21,7 @@ class Agent(object):
             in the RRT tree for the agent's planner.
         rrt_iters - the number of iterations to run for RRT at each
             spin_once.
-        path_res - a float representing the distance to travel per branch in RRT
+        step - a float representing the distance to travel per branch in RRT
         ccd - a float representing the ConnectCircleDist of the RRT object
         """
 
@@ -36,7 +36,7 @@ class Agent(object):
 
         self.rrt = RRTstar(
             self.start, self.goal, environment, goal_dist,
-            path_resolution=path_res, connect_circle_dist=ccd, max_iter=rrt_iters
+            step_size=step, connect_circle_dist=ccd, max_iter=rrt_iters
         )
         self.goal_dist = goal_dist
         # curr_plan is the currently executing plan; best_plan is a

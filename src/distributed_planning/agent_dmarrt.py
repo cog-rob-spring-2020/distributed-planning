@@ -31,14 +31,14 @@ class DMARRTAgent(Agent):
         goal_pos = (agent_params['goal_pos']['x'], agent_params['goal_pos']['y'])
         goal_dist = agent_params['goal_dist']
         rrt_iters = agent_params['rrt_iters']
-        path_res = agent_params['path_res']
+        step_size = agent_params['step_size']
         ccd = agent_params['connect_circle_dist']
         self.spin_rate = agent_params['spin_rate']
 
         # get map data from server
         map = rospy.wait_for_message("/map", OccupancyGrid)
 
-        super(DMARRTAgent, self).__init__(start_pos, goal_pos, map, goal_dist, rrt_iters, path_res, ccd)
+        super(DMARRTAgent, self).__init__(start_pos, goal_pos, map, goal_dist, rrt_iters, step_size, ccd)
 
         self.plan_bids = {}
         self.peer_waypoints = {}

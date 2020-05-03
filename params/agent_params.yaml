@@ -9,8 +9,8 @@ agent_1:
     y: 15.0
   goal_dist: 1.5
   rrt_iters: 100
-  path_res: 0.5
-  connect_circle_dist: 30.0
+  step_size: 1.0
+  connect_circle_dist: 5.0
   spin_rate: 50
 
 agent_2:
@@ -22,7 +22,7 @@ agent_2:
     y: 10.0
   goal_dist: 2.0
   rrt_iters: 10
-  path_res: 1.0
+  step_size: 1.0
   spin_rate: 10
 
 agent_3:
@@ -34,7 +34,7 @@ agent_3:
     y: 5.0
   goal_dist: 2.0
   rrt_iters: 10
-  path_res: 1.0
+  step_size: 1.0
   spin_rate: 10
 
 agent_4:
@@ -46,7 +46,7 @@ agent_4:
     y: 5.0
   goal_dist: 2.0
   rrt_iters: 10
-  path_res: 1.0
+  step_size: 1.0
   spin_rate: 10
 
 agent_5:
@@ -58,5 +58,5 @@ agent_5:
     y: 5.0
   goal_dist: 2.0
   rrt_iters: 10
-  path_res: 1.0
+  step_size: 1.0
   spin_rate: 10

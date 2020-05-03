@@ -132,7 +132,7 @@ class Path:
 
 class RRTstar:
     def __init__(self, start, goal, env, goal_dist=0.5, goal_sample_rate=0.7,
-                 path_resolution=0.1, connect_circle_dist=5.0, max_iter=1000):
+                 step_size=0.1, connect_circle_dist=5.0, max_iter=1000):
         # Planner states
         self.start = Node(start[0], start[1])
         self.goal = Node(goal[0], goal[1])
@@ -156,7 +156,7 @@ class RRTstar:
         # Planner parameters
         self.goal_dist = goal_dist
         self.goal_sample_rate = goal_sample_rate
-        self.path_resolution = path_resolution
+        self.step_size = step_size
         self.connect_circle_dist = connect_circle_dist
         self.max_iter = max_iter
 
@@ -184,28 +184,15 @@ class RRTstar:
         near_node = self.node_list[nearest_id]
         new_node = self.steer(near_node, rand_node)
 
-        # print("\n")
-        # print("rand_node:", str(rand_node))
-        # print("near_node:", str(near_node))
-        # print("new_node:", str(new_node))
-
         if new_node is not None:
             if not self.check_collision_point(new_node.x, new_node.y):
                 near_ids = self.get_near_node_ids(new_node)
-                # print("new_node:", str(new_node))
-                # if not near_ids:
-                    # print("no_near_ids")
                 paired_new_node = self.choose_parent(new_node, near_ids)
-                # print("paired: ", str(paired_new_node))
-                # print("new_node: ", str(new_node))
-                # print("\n")
 
                 if paired_new_node and (paired_new_node != new_node):
                     new_node = paired_new_node
                     self.node_list.append(new_node)
-                    # self.rewire(new_node, near_ids)
-                # else:
-                    # print('incest')
+                    self.rewire(new_node, near_ids)
 
             if return_first_path and new_node:
                 return self.get_path()
@@ -217,24 +204,12 @@ class RRTstar:
         new_node = Node(from_node.x, from_node.y)
         d, theta = RRTstar.calc_dist_and_angle(new_node, to_node)
 
-        new_node.path_x = [new_node.x]
-        new_node.path_y = [new_node.y]
+        step = self.step_size
+        if step > d:
+            step = d
 
-        extend_length = self.goal_dist
-        if extend_length > d:
-            extend_length = d
-
-        n_expand = np.floor(float(extend_length) / self.path_resolution)
-        for _ in range(int(n_expand)):
-            new_node.x += self.path_resolution * np.cos(theta)
-            new_node.y += self.path_resolution * np.sin(theta)
-            new_node.path_x.append(new_node.x)
-            new_node.path_y.append(new_node.y)
-
-        d, _ = RRTstar.calc_dist_and_angle(new_node, to_node)
-        if d <= self.path_resolution:
-            new_node.path_x.append(to_node.x)
-            new_node.path_y.append(to_node.y)
+        new_node.x += step * np.cos(theta)
+        new_node.y += step * np.sin(theta)
 
         if new_node != from_node:
             new_node.parent = from_node

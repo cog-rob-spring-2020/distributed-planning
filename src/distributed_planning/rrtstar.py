@@ -103,7 +103,7 @@ class Path:
         return writ
 
     @staticmethod
-    def dist_between_nodes(self, from_node, to_node):
+    def dist_between_nodes(from_node, to_node):
         """ Compute the Euclidean distance between two nodes. """
         dx = from_node.x - to_node.x
         dy = from_node.y - to_node.y

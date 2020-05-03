@@ -23,7 +23,7 @@ See [instructions](https://docs.google.com/document/d/1oX_eJmV-vMKZSr4hDh7DyUTJE
 You need the following dependencies:
 
 ```sh
-sudo apt-get install python-wstool python-catkin-tools
+sudo apt-get install python-wstool python-catkin-tools ros-kinetic-map-server
 ```
 
 Make sure your [ROS environment is setup](http://wiki.ros.org/ROS/Tutorials/InstallingandConfiguringROSEnvironment)

@@ -4,7 +4,6 @@ import numpy as np
 import yaml
 
 from distributed_planning.msg import GoalBid, PlanBid, WinnerID
-from agent import Agent
 from rrtstar import RRTstar, Path
 
 import rospy
@@ -18,7 +17,7 @@ from nav_msgs.msg import OccupancyGrid, MapMetaData
 from visualization_msgs.msg import Marker
 
 
-class DMARRTAgent(Agent):
+class DMARRTAgent:
     """
     An Agent that uses DMA-RRT for distributed path planning
     """
@@ -37,7 +36,7 @@ class DMARRTAgent(Agent):
         self.spin_rate = agent_params['spin_rate']
 
         # get map data from server
-        map = rospy.wait_for_message("/map", OccupancyGrid)
+        map_data = rospy.wait_for_message("/map", OccupancyGrid)
         
 
         # Keeps track of other agents' plans so that we can
@@ -50,7 +49,7 @@ class DMARRTAgent(Agent):
         self.pos = self.start
 
         self.rrt = RRTstar(
-            start_pos, goal_pos, map, goal_dist,
+            start_pos, goal_pos, map_data, goal_dist,
             step_size=step, near_radius=ccd, max_iter=rrt_iters
         )
         

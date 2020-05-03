@@ -11,8 +11,11 @@ import rospy
 import tf
 import tf2_ros
 from std_msgs.msg import Header, String
-from geometry_msgs.msg import Pose, PoseStamped, Transform, TransformStamped
+from geometry_msgs.msg import Pose, PoseStamped, Transform, \
+        TransformStamped, Point, PoseWithCovarianceStamped
 from nav_msgs.msg import Path as PathRosMsg
+from nav_msgs.msg import OccupancyGrid, MapMetaData
+from visualization_msgs.msg import Marker
 
 
 class DMARRTAgent(Agent):
@@ -21,8 +24,6 @@ class DMARRTAgent(Agent):
     """
 
     def __init__(self):
-        env_file = rospy.get_param("/env_file")
-
         self.identifier = rospy.get_name()[1:]
 
         agent_params = rospy.get_param("/" + self.identifier)
@@ -30,13 +31,14 @@ class DMARRTAgent(Agent):
         goal_pos = (agent_params['goal_pos']['x'], agent_params['goal_pos']['y'])
         goal_dist = agent_params['goal_dist']
         rrt_iters = agent_params['rrt_iters']
+        path_res = agent_params['path_res']
+        ccd = agent_params['connect_circle_dist']
         self.spin_rate = agent_params['spin_rate']
 
-        lunar_env = Environment()
-        lunar_env.parse_yaml_data(yaml.safe_load(env_file))
-        lunar_env.calculate_scene_dimensions()
+        # get map data from server
+        map = rospy.wait_for_message("/map", OccupancyGrid)
 
-        super(DMARRTAgent, self).__init__(start_pos, goal_pos, lunar_env, goal_dist, rrt_iters)
+        super(DMARRTAgent, self).__init__(start_pos, goal_pos, map, goal_dist, rrt_iters, path_res, ccd)
 
         self.plan_bids = {}
         self.peer_waypoints = {}
@@ -60,16 +62,25 @@ class DMARRTAgent(Agent):
         self.own_map_frame_id = "/" + self.identifier + "_map"
         self.static_tf_broadcaster = tf2_ros.StaticTransformBroadcaster()
         own_map_tf = TransformStamped()
-        own_map_tf.header.frame_id = "/map"
         own_map_tf.header.stamp = rospy.Time.now()
+        own_map_tf.header.frame_id = "/map"
         own_map_tf.child_frame_id = self.own_map_frame_id
         own_map_tf.transform.rotation.w = 1.0
         self.static_tf_broadcaster.sendTransform([own_map_tf])
+
+        # optionally publish RRT tree
+        self.rrt_tree_pub = rospy.Publisher(self.identifier + "/rrt/tree", Marker, queue_size=10)
+        self.tree_marker = self.setup_tree_marker()
+
+        rospy.loginfo(self.identifier + " has initialized.")
+
+        # TODO(marcus): remove:
+        rospy.Subscriber("/initialpose", PoseWithCovarianceStamped, self.coll_check)
         
         # Setup the spin
         rospy.Timer(rospy.Duration(1.0 / self.spin_rate), self.spin)
 
-    # TODO(marcus): guarantee that you don't need registration.
+    # TODO(marcus): verify that you don't need registration.
     # def registration_cb(self, msg):
     #     """
     #     We met a peer, let's note that we're tracking their path
@@ -78,6 +89,11 @@ class DMARRTAgent(Agent):
     #     if msg.frame_id != self.identifier:
     #         self.peer_waypoints[msg.frame_id] = Path()
     #         rospy.Subscriber(msg.frame_id + "/waypoints", PathRosMsg, self.waypoint_cb)
+
+    def coll_check(self, msg):
+        """
+        """
+        print(self.rrt.check_collision_point(msg.pose.pose.position.x, msg.pose.pose.position.y))
 
     def received_plan_bid(self, msg):
         """
@@ -122,7 +138,16 @@ class DMARRTAgent(Agent):
         broadcast its own new goal bid.
         """
         # TODO: do we need a timeout here instead of rrt_iters???
-        new_plan = self.create_new_plan()
+        try:
+            new_plan = self.create_new_plan()
+        except RuntimeError as e:
+            print("\n")
+            print("len nodes:", len(self.rrt.node_list))
+            for node in self.rrt.node_list:
+                print("node:", str(node))
+                print("pare:", str(node.parent))
+            raise e
+        self.publish_rrt_tree(self.rrt.node_list)
 
         # Assign first "current path" found
         if not self.curr_plan.nodes:
@@ -203,6 +228,42 @@ class DMARRTAgent(Agent):
                 path_msg.poses[i] = pose
 
             self.waypoints_pub.publish(path_msg)
+
+    def publish_rrt_tree(self, nodes):
+        """
+        """
+        # if not rospy.is_shutdown and self.rrt_tree_pub.get_num_connections() > 0:
+        if True:
+            self.tree_marker.points = []
+            self.tree_marker.header.stamp = rospy.Time.now()
+
+            # print("\n")
+            # print("len nodes:", len(nodes))
+
+            for node in nodes:
+                # print("node:", str(node))
+                # print("pare:", str(node.parent))
+                # print("\n")
+                if node.parent:
+                    self.tree_marker.points.append(Point(node.x, node.y, 0.0))
+                    self.tree_marker.points.append(Point(node.parent.x, node.parent.y, 0.0))
+
+            self.rrt_tree_pub.publish(self.tree_marker)
+
+    def setup_tree_marker(self):
+        """
+        """
+        tree_marker = Marker()
+        tree_marker.points = []
+        tree_marker.header.frame_id = self.own_map_frame_id
+        tree_marker.action = Marker.ADD
+        tree_marker.type = Marker.LINE_LIST
+        tree_marker.pose.orientation.w = 1.0
+        tree_marker.scale.x = 0.5
+        tree_marker.color.r = 1.0
+        tree_marker.color.a = 1.0
+
+        return tree_marker
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ import numpy as np
 import random
 import copy
 import rospy
+import tf.transformations as transformations
 
 from environment import Environment
 
@@ -82,7 +83,7 @@ class Path:
             self.cost = self.nodes[-1].cost
             if not self.is_complete:
                 self.cost += penalty  # Incomplete costs more than complete
-                self.dist_to_goal = self.dist_between_nodes(self.nodes[-1],
+                self.dist_to_goal = Path.dist_between_nodes(self.nodes[-1],
                                                             NodeStamped(self.goal_node))
 
         # There is no frozendict! Do not modify this!
@@ -101,6 +102,7 @@ class Path:
 
         return writ
 
+    @staticmethod
     def dist_between_nodes(self, from_node, to_node):
         """ Compute the Euclidean distance between two nodes. """
         dx = from_node.x - to_node.x
@@ -134,7 +136,18 @@ class RRTstar:
         # Planner states
         self.start = Node(start[0], start[1])
         self.goal = Node(goal[0], goal[1])
-        self.env = env
+
+        self.map = self.convert_map(env)
+        self.map_metadata = env.info
+        maxx = (self.map_metadata.origin.position.x + float(self.map_metadata.width) / 2) * self.map_metadata.resolution
+        maxy = (self.map_metadata.origin.position.y + float(self.map_metadata.height) / 2) * self.map_metadata.resolution
+        minx = maxx - (self.map_metadata.width * self.map_metadata.resolution)
+        miny = maxy - (self.map_metadata.height * self.map_metadata.resolution)
+        self.map_bounds = ((minx, maxx), (miny, maxy))
+
+        print(self.map_bounds)
+        print(self.map_metadata)
+
         self.curr_iter = 0
         self.node_list = [self.start]
         self.found_complete_path = False
@@ -171,14 +184,28 @@ class RRTstar:
         near_node = self.node_list[nearest_id]
         new_node = self.steer(near_node, rand_node)
 
-        if new_node is not None:
-            if self.env.collision_free(new_node.x, new_node.y):
-                near_ids = self.get_near_node_ids(new_node)
-                new_node = self.choose_parent(new_node, near_ids)
+        # print("\n")
+        # print("rand_node:", str(rand_node))
+        # print("near_node:", str(near_node))
+        # print("new_node:", str(new_node))
 
-                if new_node:
+        if new_node is not None:
+            if not self.check_collision_point(new_node.x, new_node.y):
+                near_ids = self.get_near_node_ids(new_node)
+                # print("new_node:", str(new_node))
+                # if not near_ids:
+                    # print("no_near_ids")
+                paired_new_node = self.choose_parent(new_node, near_ids)
+                # print("paired: ", str(paired_new_node))
+                # print("new_node: ", str(new_node))
+                # print("\n")
+
+                if paired_new_node and (paired_new_node != new_node):
+                    new_node = paired_new_node
                     self.node_list.append(new_node)
-                    self.rewire(new_node, near_ids)
+                    # self.rewire(new_node, near_ids)
+                # else:
+                    # print('incest')
 
             if return_first_path and new_node:
                 return self.get_path()
@@ -197,7 +224,7 @@ class RRTstar:
         if extend_length > d:
             extend_length = d
 
-        n_expand = np.floor(extend_length / self.path_resolution)
+        n_expand = np.floor(float(extend_length) / self.path_resolution)
         for _ in range(int(n_expand)):
             new_node.x += self.path_resolution * np.cos(theta)
             new_node.y += self.path_resolution * np.sin(theta)
@@ -209,9 +236,8 @@ class RRTstar:
             new_node.path_x.append(to_node.x)
             new_node.path_y.append(to_node.y)
 
-        new_node.parent = from_node
-
         if new_node != from_node:
+            new_node.parent = from_node
             return new_node
 
         return None
@@ -223,16 +249,19 @@ class RRTstar:
 
         costs = []
         for id in near_ids:
-            near_node = self.node_list[id]
-            t_node = self.steer(near_node, new_node)
+            if self.node_list[id] != new_node:
+                near_node = self.node_list[id]
+                t_node = self.steer(near_node, new_node)
 
-            if t_node and self.env.collision_free(t_node.x, t_node.y):
-                costs.append(RRTstar.compute_new_cost(near_node, new_node))
-            else:
-                costs.append(np.inf)  # Collision nodes have inf cost.
+                if t_node and not self.check_collision_line(new_node, t_node):
+                    costs.append(RRTstar.compute_new_cost(near_node, new_node))
+                else:
+                    # print('failed collision check:', str(t_node))
+                    costs.append(np.inf)  # Collision nodes have inf cost.
 
         min_cost = min(costs)
         if min_cost == np.inf:
+            # print("min cost is inf")
             return None
 
         min_id = near_ids[costs.index(min_cost)]
@@ -258,7 +287,7 @@ class RRTstar:
         for id in goal_ids:
             t_node = self.steer(self.node_list[id], self.goal)
 
-            if t_node and self.env.collision_free(t_node.x, t_node.y):
+            if t_node and not self.check_collision_line(self.node_list[id], t_node):
                 safe_goal_ids.append(id)
 
         if len(safe_goal_ids) != 0:
@@ -279,7 +308,7 @@ class RRTstar:
                 edge_node.cost = RRTstar.compute_new_cost(new_node, near_node)
 
                 if near_node.cost > edge_node.cost and \
-                        self.env.collision_free(edge_node.x, edge_node.y):
+                        not self.check_collision_line(new_node, edge_node):
                     self.node_list[id] = edge_node
                     self.propagate_cost(new_node)
 
@@ -388,7 +417,7 @@ class RRTstar:
         path = Path(path_nodes,
                     NodeStamped(self.start),
                     NodeStamped(self.goal),
-                    2.0 * max(self.env.bounds))
+                    2.0 * max(self.map_bounds[0][1] ,self.map_bounds[1][1]))
         return path
 
     def allocate_time(self, nodes, start_time):
@@ -419,8 +448,8 @@ class RRTstar:
     def get_rand_node(self):
         """ Return a random Node object within the prescribed confines. """
         if random.randint(0, 100) > self.goal_sample_rate:
-            node = Node(random.uniform(self.env.bounds[0], self.env.bounds[2]),
-                        random.uniform(self.env.bounds[1], self.env.bounds[3]))
+            node = Node(random.uniform(self.map_bounds[0][0], self.map_bounds[0][1]),
+                        random.uniform(self.map_bounds[1][0], self.map_bounds[1][1]))
 
         else:
             node = Node(self.goal.x, self.goal.y)
@@ -485,3 +514,93 @@ class RRTstar:
                 self.start = new_pos
                 self.curr_iter = 0
                 self.node_list = [self.start]
+
+    def check_collision_point(self, x, y):
+        """
+        """
+        map_pos = self.convert_point_to_map((x, y))
+        return self.map[map_pos[0]][map_pos[1]] > 0
+
+    def check_collision_line(self, node1, node2):
+        """
+        """
+        map_pos1 = self.convert_point_to_map((node1.x, node1.y))
+        map_pos2 = self.convert_point_to_map((node2.x, node2.y))
+
+        minx = min(map_pos1[0], map_pos2[0])
+        miny = min(map_pos1[1], map_pos2[1])
+        maxx = max(map_pos1[0], map_pos2[0])
+        maxy = max(map_pos1[1], map_pos2[1])
+
+        if (minx == maxx and miny == maxy):
+            return self.check_collision_point(node1.x, node1.y)
+        
+        # if (maxx - minx) > (maxy - miny):
+        #     for x in range(minx, maxx+1):
+        #         y = (map_pos2[1] - map_pos1[1]) * (x - minx) / (maxx - minx) + map_pos1[1]
+        #         if self.map[x][y] > 0:
+        #             return True
+        # else:
+        #     for y in range(miny, maxy+1):
+        #         x = (map_pos2[0] - map_pos1[0]) * (y - miny) / (maxy - miny) + map_pos1[0]
+        #         if self.map[x][y] > 0:
+        #             return True
+
+        m_new = 2 * np.abs(miny - maxy)
+        slope_error_new = m_new - (maxx - minx)
+        y = maxy
+        for x in range(minx, maxx+1):
+            if self.map[x][y] > 0:
+                return True
+            if self.map[x-1][y] > 0:
+                return True
+            if self.map[x+1][y] > 0:
+                return True
+            if self.map[x][y-1] > 0:
+                return True
+            if self.map[x][y+1] > 0:
+                return True
+            
+            slope_error_new += m_new
+            if slope_error_new >= 0:
+                y -= 1
+                slope_error_new -= 2 * (maxx - minx)
+
+        return False
+    
+    def convert_point_to_map(self, pos):
+        """
+        """
+        x = pos[0]
+        y = pos[1]
+
+        x -= self.map_metadata.origin.position.x
+        y -= self.map_metadata.origin.position.y
+        roll, pitch, yaw = transformations.euler_from_quaternion([
+            self.map_metadata.origin.orientation.x,
+            self.map_metadata.origin.orientation.y,
+            self.map_metadata.origin.orientation.z,
+            self.map_metadata.origin.orientation.w]
+        )
+
+        # x = x * np.cos(yaw) + y * np.sin(yaw)
+        # y = -x * np.sin(yaw) + y * np.cos(yaw)
+
+        return (int(x / self.map_metadata.resolution),
+                int(y / self.map_metadata.resolution))
+
+    def convert_map(self, map):
+        """
+        """
+        height = map.info.height
+        width = map.info.width
+
+        new_map = np.transpose(np.reshape(map.data, (height, width)))
+        # np.abs(new_map)  # out-of-bounds becomes obstacles
+        # (new_map > 0).astype(int)  # Make all elements binary
+
+        # data = new_map * 255
+        # from scipy.misc import toimage
+        # toimage(data).show()
+
+        return new_map

@@ -5,11 +5,13 @@ agent_1:
     x: 0.0
     y: 0.0
   goal_pos:
-    x: 0.0
-    y: 5.0
-  goal_dist: 0.1
-  rrt_iters: 10
-  spin_rate: 10
+    x: 15.0
+    y: 15.0
+  goal_dist: 1.5
+  rrt_iters: 100
+  path_res: 0.5
+  connect_circle_dist: 30.0
+  spin_rate: 50
 
 agent_2:
   start_pos:
@@ -18,8 +20,9 @@ agent_2:
   goal_pos:
     x: 0.0
     y: 10.0
-  goal_dist: 0.1
+  goal_dist: 2.0
   rrt_iters: 10
+  path_res: 1.0
   spin_rate: 10
 
 agent_3:
@@ -29,8 +32,9 @@ agent_3:
   goal_pos:
     x: 0.0
     y: 5.0
-  goal_dist: 0.1
+  goal_dist: 2.0
   rrt_iters: 10
+  path_res: 1.0
   spin_rate: 10
 
 agent_4:
@@ -40,8 +44,9 @@ agent_4:
   goal_pos:
     x: 0.0
     y: 5.0
-  goal_dist: 0.1
+  goal_dist: 2.0
   rrt_iters: 10
+  path_res: 1.0
   spin_rate: 10
 
 agent_5:
@@ -51,6 +56,7 @@ agent_5:
   goal_pos:
     x: 0.0
     y: 5.0
-  goal_dist: 0.1
+  goal_dist: 2.0
   rrt_iters: 10
+  path_res: 1.0
   spin_rate: 10

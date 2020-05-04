@@ -24,7 +24,7 @@ from rrtstar import RRTstar, Path
 from distributed_planning.msg import GoalBid, PlanBid, WinnerID, Estop, EstopWaypoints
 
 
-class DMARRTAgent(object):
+class CoopDMARRTAgent(object):
     """
     An Agent that uses DMA-RRT for distributed path planning
     """
@@ -229,7 +229,7 @@ class DMARRTAgent(object):
             self.curr_plan = self.best_plan
 
             # Solve collisions with time reallocation
-            # self.curr_plan = DMARRTAgent.multiagent_aware_time_reallocmultiagent_aware_time_realloc(
+            # self.curr_plan = CoopDMARRTAgent.multiagent_aware_time_reallocmultiagent_aware_time_realloc(
             #     self.curr_plan, self.other_agent_plans
             # )
 
@@ -478,6 +478,6 @@ class DMARRTAgent(object):
 
 if __name__ == "__main__":
     rospy.init_node("agent", anonymous=True)
-    agent = DMARRTAgent()
+    agent = CoopDMARRTAgent()
 
     rospy.spin()

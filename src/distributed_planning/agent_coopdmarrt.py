@@ -175,29 +175,37 @@ class DMARRTAgent(object):
         self.curr_plan = self.curr_plan[:i]
         self.check_estops = False
 
-    def estop_check(self):
+    def estop_check(self, peer_id):
         """
         Emergency stop check of cooperative DMA-RRT as described in algorithm 7 from Desaraju/How 2012.
 
-        Look at peer emergency stops to determine if asking an agent to apply an emergency stop will result in lower global cost.
+        Look at a conflicting peer's emergency stops to determine if asking an agent to apply an emergency stop will result in lower global cost.
         """
         if not self.check_estops:
             return
 
-        # TODO: add 2 emergency stops evenly spaced in each agent's path
+        estops = {}
+
+        # look backwards in their estops
+        for es in reversed(self.peer_waypoints[peer_id].estops):
+            # truncate their path and check for conflict
+            # if no conflict, calculate total_cost = cost of self + cost of peer
+            total_cost = 0.0
+            estops[node] = total_cost
+
+        # get the min total_cost from estops
+        # broadcast
 
     def spin_once(self):
         """
-        Individual component of DMA-RRT as described in algorithm 4
+        Individual component of DMA-RRT as described in algorithm 6
         from Desaraju/How 2012.
 
         If this agent holds the replanning token, it will update its
         internal plan and broadcast the next winner. Otw, it will
         broadcast its own PPI bid.
 
-        If this agent holds the goal claiming token, it will claim
-        its favorite goal and broadcast the next winner. Otw, it will
-        broadcast its own new goal bid.
+        This agent may also check peer emergency stops to move towards a more globally optimized path
         """
         # Move the agent by one timestep.
         curr_time = rospy.Time.now()

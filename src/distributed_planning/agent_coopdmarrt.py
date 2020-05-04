@@ -306,7 +306,7 @@ class DMARRTAgent(object):
             # mark evenly spaced poses along the path as estops
             path_msg.estops = []
             spacing = math.floor(len(plan.nodes) / (self.num_estops + 1))
-            for n in self.num_estops:
+            for n in range(1, self.num_estops + 1):
                 estop = path_msg.poses[n * spacing]
                 path_msg.estops.push(estop)
 

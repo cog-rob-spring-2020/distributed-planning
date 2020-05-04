@@ -6,11 +6,8 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
-        - /Agent 11
-        - /Agent 21
-        - /Agent 51
-      Splitter Ratio: 0.5
-    Tree Height: 1474
+      Splitter Ratio: 0.6635071039199829
+    Tree Height: 584
   - Class: rviz/Selection
     Name: Selection
   - Class: rviz/Tool Properties
@@ -59,16 +56,30 @@ Visualization Manager:
       Enabled: true
       Frame Timeout: 15
       Frames:
-        All Enabled: true
+        All Enabled: false
+        agent_1_body:
+          Value: true
         agent_1_map:
+          Value: false
+        agent_2_body:
           Value: true
         agent_2_map:
+          Value: false
+        agent_3_body:
+          Value: true
+        agent_3_map:
+          Value: false
+        agent_4_body:
+          Value: true
+        agent_4_map:
+          Value: false
+        agent_5_body:
           Value: true
         agent_5_map:
-          Value: true
+          Value: false
         map:
           Value: true
-      Marker Scale: 1
+      Marker Scale: 25
       Name: TF
       Show Arrows: true
       Show Axes: true
@@ -76,11 +87,20 @@ Visualization Manager:
       Tree:
         map:
           agent_1_map:
-            {}
+            agent_1_body:
+              {}
           agent_2_map:
-            {}
+            agent_2_body:
+              {}
+          agent_3_map:
+            agent_3_body:
+              {}
+          agent_4_map:
+            agent_4_body:
+              {}
           agent_5_map:
-            {}
+            agent_5_body:
+              {}
       Update Interval: 0
       Value: true
     - Alpha: 0.5
@@ -100,7 +120,7 @@ Visualization Manager:
           Marker Topic: /agent_1/rrt/tree
           Name: Marker
           Namespaces:
-            "": true
+            {}
           Queue Size: 100
           Value: true
         - Alpha: 1
@@ -126,7 +146,7 @@ Visualization Manager:
           Topic: /agent_1/waypoints
           Unreliable: false
           Value: true
-      Enabled: true
+      Enabled: false
       Name: Agent 1
     - Class: rviz/Group
       Displays:
@@ -161,8 +181,78 @@ Visualization Manager:
           Topic: /agent_2/waypoints
           Unreliable: false
           Value: true
-      Enabled: true
+      Enabled: false
       Name: Agent 2
+    - Class: rviz/Group
+      Displays:
+        - Class: rviz/Marker
+          Enabled: true
+          Marker Topic: /agent_3/rrt/tree
+          Name: Marker
+          Namespaces:
+            {}
+          Queue Size: 100
+          Value: true
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz/Path
+          Color: 25; 255; 0
+          Enabled: true
+          Head Diameter: 0.30000001192092896
+          Head Length: 0.20000000298023224
+          Length: 0.30000001192092896
+          Line Style: Lines
+          Line Width: 0.029999999329447746
+          Name: Path
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.10000000149011612
+          Shaft Length: 0.10000000149011612
+          Topic: /agent_3/waypoints
+          Unreliable: false
+          Value: true
+      Enabled: false
+      Name: Agent 3
+    - Class: rviz/Group
+      Displays:
+        - Class: rviz/Marker
+          Enabled: true
+          Marker Topic: /agent_4/rrt/tree
+          Name: Marker
+          Namespaces:
+            {}
+          Queue Size: 100
+          Value: true
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz/Path
+          Color: 25; 255; 0
+          Enabled: true
+          Head Diameter: 0.30000001192092896
+          Head Length: 0.20000000298023224
+          Length: 0.30000001192092896
+          Line Style: Lines
+          Line Width: 0.029999999329447746
+          Name: Path
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.10000000149011612
+          Shaft Length: 0.10000000149011612
+          Topic: /agent_4/waypoints
+          Unreliable: false
+          Value: true
+      Enabled: false
+      Name: Agent 4
     - Class: rviz/Group
       Displays:
         - Class: rviz/Marker
@@ -170,7 +260,7 @@ Visualization Manager:
           Marker Topic: /agent_5/rrt/tree
           Name: Marker
           Namespaces:
-            "": true
+            {}
           Queue Size: 100
           Value: true
         - Alpha: 1
@@ -196,7 +286,7 @@ Visualization Manager:
           Topic: /agent_5/waypoints
           Unreliable: false
           Value: true
-      Enabled: true
+      Enabled: false
       Name: Agent 5
   Enabled: true
   Global Options:
@@ -226,7 +316,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 634.1652221679688
+      Distance: 414.1612854003906
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -244,15 +334,15 @@ Visualization Manager:
       Pitch: 1.5697963237762451
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 4.718575477600098
+      Yaw: 4.708575248718262
     Saved: ~
 Window Geometry:
   Displays:
     collapsed: false
-  Height: 1890
+  Height: 1000
   Hide Left Dock: false
   Hide Right Dock: true
-  QMainWindow State: 000000ff00000000fd0000000400000000000001a800000690fc0200000008fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000009400fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000005b000006900000014500fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261000000010000012e00000316fc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000005b00000316000000fc00fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e1000001970000000300000bb800000048fc0100000002fb0000000800540069006d0065010000000000000bb8000003ca00fffffffb0000000800540069006d0065010000000000000450000000000000000000000a060000069000000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd0000000400000000000001a800000316fc0200000008fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000009400fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000005b000003160000014500fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261000000010000012e00000316fc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000005b00000316000000fc00fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e100000197000000030000078000000048fc0100000002fb0000000800540069006d0065010000000000000780000003ca00fffffffb0000000800540069006d00650100000000000004500000000000000000000005ce0000031600000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:
@@ -261,6 +351,6 @@ Window Geometry:
     collapsed: false
   Views:
     collapsed: true
-  Width: 3000
-  X: 0
+  Width: 1920
+  X: 3000
   Y: 40

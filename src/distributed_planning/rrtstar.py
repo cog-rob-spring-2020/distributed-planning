@@ -27,6 +27,9 @@ class Node(object):
             return (self.x == other.x) and (self.y == other.y)
         return False
 
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
 
 class NodeStamped(Node):
     def __init__(self, node):
@@ -45,6 +48,9 @@ class NodeStamped(Node):
         if isinstance(other, self.__class__) or isinstance(other, Node):
             return (self.x == other.x) and (self.y == other.y)
         return False
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
 
 class Path:

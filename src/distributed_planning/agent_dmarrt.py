@@ -8,6 +8,7 @@ from rrtstar import RRTstar, Path
 
 import rospy
 import tf
+import tf
 import tf2_ros
 from std_msgs.msg import Header
 from geometry_msgs.msg import Pose, PoseStamped, Transform, \
@@ -17,7 +18,7 @@ from nav_msgs.msg import OccupancyGrid, MapMetaData
 from visualization_msgs.msg import Marker
 
 
-class DMARRTAgent:
+class DMARRTAgent(object):
     """
     An Agent that uses DMA-RRT for distributed path planning
     """
@@ -25,6 +26,7 @@ class DMARRTAgent:
     def __init__(self):
         # Get All ROS params
         self.identifier = rospy.get_name()[1:]
+        self.body_frame = self.identifier + "_body"
 
         agent_params = rospy.get_param("/" + self.identifier)
         start_pos = (agent_params['start_pos']['x'], agent_params['start_pos']['y'])
@@ -36,8 +38,8 @@ class DMARRTAgent:
         self.spin_rate = agent_params['spin_rate']
 
         # get map data from server
-        map_data = rospy.wait_for_message("/map", OccupancyGrid)
-        
+        self.map_topic = rospy.get_param("/map_topic")
+        map_data = rospy.wait_for_message(self.map_topic, OccupancyGrid)
 
         # Keeps track of other agents' plans so that we can
         #   add the other agents as obstacles when replanning:
@@ -47,23 +49,27 @@ class DMARRTAgent:
         self.start = start_pos
         self.goal = goal_pos
         self.pos = self.start
+        self.curr_plan_id = 0  # ID of the node in the current plan we are at
+        self.latest_movement_timestamp = rospy.Time.now()
+        self.movement_dt = agent_params['movement_dt']
 
         self.rrt = RRTstar(
             start_pos, goal_pos, map_data, goal_dist,
             step_size=step, near_radius=ccd, max_iter=rrt_iters
         )
+
+        # Send and track robot positions
+        self.tf_broadcaster = tf.TransformBroadcaster()
+        # self.tf_listener = tf.TransformListener()
         
         # curr_plan is the currently executing plan; best_plan is a
         #    lower-cost path than curr_plan, if one exists.
-        self.curr_plan = Path()
-        self.best_plan = Path()
+        self.curr_plan = None
+        self.best_plan = None
 
         self.plan_bids = {}
         self.peer_waypoints = {}
         self.plan_token_holder = rospy.get_param("~has_token", False)
-
-        # TODO: how should this be updated?
-        self.curr_time = 0.0  # Simulation time. Updated externally
 
         # be ready for replanning bids
         rospy.Subscriber("plan_bids", PlanBid, self.plan_bid_cb)
@@ -81,7 +87,7 @@ class DMARRTAgent:
         self.static_tf_broadcaster = tf2_ros.StaticTransformBroadcaster()
         own_map_tf = TransformStamped()
         own_map_tf.header.stamp = rospy.Time.now()
-        own_map_tf.header.frame_id = "/map"
+        own_map_tf.header.frame_id = self.map_topic
         own_map_tf.child_frame_id = self.own_map_frame_id
         own_map_tf.transform.rotation.w = 1.0
         self.static_tf_broadcaster.sendTransform([own_map_tf])
@@ -137,23 +143,31 @@ class DMARRTAgent:
         its favorite goal and broadcast the next winner. Otw, it will
         broadcast its own new goal bid.
         """
-        # TODO: do we need a timeout here instead of rrt_iters???
-        new_plan = self.create_new_plan()
-        self.publish_rrt_tree(self.rrt.node_list)
+        # Move the agent by one timestep.
+        curr_time = rospy.Time.now()
+        dt = curr_time - self.latest_movement_timestamp
+        if dt.to_sec() > self.movement_dt:
+            self.publish_new_tf(curr_time)
+            self.latest_movement_timestamp = curr_time
 
-        # Assign first "current path" found
-        if not self.curr_plan.nodes:
-            self.curr_plan = new_plan
-        self.best_plan = new_plan
+        # TODO: do we need a timeout here instead of rrt_iters???
+        if not self.at_goal():
+            new_plan = self.create_new_plan()
+            self.publish_rrt_tree(self.rrt.node_list)
+
+            # Assign first "current path" found
+            if not self.curr_plan:
+                self.curr_plan = new_plan
+            self.best_plan = new_plan
 
         if self.plan_token_holder:
             # Replan to new best path
             self.curr_plan = self.best_plan
 
             # Solve collisions with time reallocation
-            self.curr_plan = DMARRTAgent.multiagent_aware_time_realloc(
-                self.curr_plan, self.other_agent_plans
-            )
+            # self.curr_plan = DMARRTAgent.multiagent_aware_time_reallocmultiagent_aware_time_realloc(
+            #     self.curr_plan, self.other_agent_plans
+            # )
 
             # Broadcast the new winner of the bidding round
             if len(self.plan_bids) > 0:
@@ -169,13 +183,12 @@ class DMARRTAgent:
                 # broadcast own waypoints
                 self.publish_waypoints(self.best_plan)
 
-        else:
-            # broadcast plan bid
-            self.publish_plan_bid(self.curr_plan.cost - self.best_plan.cost)
-
         if self.at_goal():
             # no more replanning necessary!
             self.publish_plan_bid(-1000.0)
+        else:
+            # broadcast plan bid
+            self.publish_plan_bid(self.curr_plan.cost - self.best_plan.cost)
 
     def publish_winner_id(self, winner_id):
         """
@@ -211,7 +224,7 @@ class DMARRTAgent:
                 pose = PoseStamped()
                 node = plan.nodes[i]
                 pose.header.frame_id = self.own_map_frame_id
-                pose.header.stamp = rospy.Time(node.stamp)  # TODO(marcus): this needs to be a real timestamp
+                pose.header.stamp = node.stamp
                 pose.pose.position.x = node.x
                 pose.pose.position.y = node.y
                 pose.pose.position.z = 0.0  # TODO(marcus): extend to 3D
@@ -234,6 +247,32 @@ class DMARRTAgent:
                     self.tree_marker.points.append(Point(node.parent.x, node.parent.y, 0.0))
 
             self.rrt_tree_pub.publish(self.tree_marker)
+
+    def publish_new_tf(self, timestamp):
+        """ Publish the ground-truth transform to the TF tree.
+
+            Args:
+                timestamp: A rospy.Time instance representing the current
+                    time in the simulator.
+        """
+        # Publish current transform to tf tree.
+        if self.curr_plan:
+            curr_node = None
+            for i in range(self.curr_plan_id + 1, len(self.curr_plan.nodes)):
+                curr_node = self.curr_plan.nodes[i]
+
+                if curr_node.stamp >= timestamp:
+                    self.curr_plan_id = i
+                    break
+
+            if curr_node:
+                trans = [curr_node.x, curr_node.y, 0.0]
+                quat = [0, 0, 0, 1]  # TODO(marcus): add this dimensionality
+                self.tf_broadcaster.sendTransform(trans, quat, timestamp,
+                                                self.body_frame,
+                                                self.own_map_frame_id)
+
+                self.pos = (curr_node.x, curr_node.y)
 
     def setup_tree_marker(self):
         """
@@ -261,12 +300,6 @@ class DMARRTAgent:
             return True
         return False
 
-    def update_time(self, curr_time):
-        """
-        Update the internal time counter.
-        """
-        self.curr_time = curr_time
-
     def create_new_plan(self):
         """
         Spin RRT to create a new plan
@@ -276,13 +309,37 @@ class DMARRTAgent:
         """
         # Refresh environment to reflect agent's current positions
         # TODO(marcus): handled by tf tree!
-        # self.rrt.update_pos(self.pos, self.curr_time, wipe_tree=True)
+        self.rrt.update_pos(self.pos, 0, wipe_tree=True)
 
         # Grow the tree by one set of iterations
         self.rrt.spin(False)
 
         # Find the new best path in the tree
-        return self.rrt.get_path()
+        return self.allocate_time_to_path(self.rrt.get_path(), rospy.Time.now())
+
+    def allocate_time_to_path(self, path, start_time):
+        """
+        """
+        if path.nodes:
+            if self.curr_plan:
+                start_id = 0
+                for i in range(len(path.nodes)):
+                    node = path.nodes[i]
+                    if self.curr_plan_id < len(self.curr_plan.nodes):
+                        if node == self.curr_plan.nodes[self.curr_plan_id]:
+                            start_id = i
+                            break
+
+                for i in range(len(path.nodes)):
+                    if i < start_id:
+                        path.nodes[i].stamp = rospy.Time.from_sec(0.0)
+                    else:
+                        path.nodes[i].stamp = start_time + rospy.Duration(i * self.movement_dt)    
+            else:
+                for i in range(len(path.nodes)):
+                    path.nodes[i].stamp = start_time + rospy.Duration(i * self.movement_dt)            
+
+        return path
 
     @staticmethod
     def multiagent_aware_time_realloc(path, other_agent_plans):

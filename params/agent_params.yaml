@@ -9,8 +9,9 @@ agent_1:
     y: 106.0
   goal_dist: 1.0
   rrt_iters: 100
-  step_size: 7.0
+  step_size: 3.0
   near_radius: 30.0
+  movement_dt: 0.1
   spin_rate: 50
 
 agent_2:
@@ -22,9 +23,10 @@ agent_2:
     y: 149.0
   goal_dist: 1.0
   rrt_iters: 100
-  step_size: 7.0
+  step_size: 3.0
   near_radius: 30.0
-  spin_rate: 10
+  movement_dt: 0.1
+  spin_rate: 50
 
 agent_3:
   start_pos:
@@ -35,9 +37,10 @@ agent_3:
     y: -117.0
   goal_dist: 1.0
   rrt_iters: 100
-  step_size: 7.0
+  step_size: 3.0
   near_radius: 30.0
-  spin_rate: 10
+  movement_dt: 0.1
+  spin_rate: 50
 
 agent_4:
   start_pos:
@@ -48,9 +51,10 @@ agent_4:
     y: 120.0
   goal_dist: 1.0
   rrt_iters: 100
-  step_size: 7.0
+  step_size: 3.0
   near_radius: 30.0
-  spin_rate: 10
+  movement_dt: 0.1
+  spin_rate: 50
 
 agent_5:
   start_pos:
@@ -61,6 +65,7 @@ agent_5:
     y: 64.4
   goal_dist: 1.0
   rrt_iters: 100
-  step_size: 7.0
+  step_size: 3.0
   near_radius: 30.0
-  spin_rate: 10
+  movement_dt: 0.1
+  spin_rate: 50

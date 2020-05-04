@@ -1,7 +1,8 @@
 <launch>
   <arg name="map" default="city"/>
 
-  <param name="/run_sim"  value="true"/>
+  <param name="/run_sim"   value="true"/>
+  <param name="/map_topic" value="/map"/>
   <rosparam command="load" file="$(find distributed_planning)/params/agent_params.yaml"/>
 
   <!-- Agent Nodes -->
@@ -14,13 +15,13 @@
     <param name="name_prefix" value="agent_2"/>
   </node>
 
-  <!-- <node pkg="distributed_planning" type="agent_dmarrt.py" name="agent_3" output="screen">
+  <node pkg="distributed_planning" type="agent_dmarrt.py" name="agent_3" output="screen">
     <param name="name_prefix" value="agent_3"/>
   </node>
 
   <node pkg="distributed_planning" type="agent_dmarrt.py" name="agent_4" output="screen">
     <param name="name_prefix" value="agent_4"/>
-  </node> -->
+  </node>
 
   <node pkg="distributed_planning" type="agent_dmarrt.py" name="agent_5" output="screen">
     <param name="name_prefix" value="agent_5"/>

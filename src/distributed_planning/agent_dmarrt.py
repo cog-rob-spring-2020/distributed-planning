@@ -11,8 +11,14 @@ import tf
 import tf
 import tf2_ros
 from std_msgs.msg import Header
-from geometry_msgs.msg import Pose, PoseStamped, Transform, \
-        TransformStamped, Point, PoseWithCovarianceStamped
+from geometry_msgs.msg import (
+    Pose,
+    PoseStamped,
+    Transform,
+    TransformStamped,
+    Point,
+    PoseWithCovarianceStamped,
+)
 from nav_msgs.msg import Path as PathRosMsg
 from nav_msgs.msg import OccupancyGrid, MapMetaData
 from visualization_msgs.msg import Marker
@@ -29,13 +35,13 @@ class DMARRTAgent(object):
         self.body_frame = self.identifier + "_body"
 
         agent_params = rospy.get_param("/" + self.identifier)
-        start_pos = (agent_params['start_pos']['x'], agent_params['start_pos']['y'])
-        goal_pos = (agent_params['goal_pos']['x'], agent_params['goal_pos']['y'])
-        goal_dist = agent_params['goal_dist']
-        rrt_iters = agent_params['rrt_iters']
-        step = agent_params['step_size']
-        ccd = agent_params['near_radius']
-        self.spin_rate = agent_params['spin_rate']
+        start_pos = (agent_params["start_pos"]["x"], agent_params["start_pos"]["y"])
+        goal_pos = (agent_params["goal_pos"]["x"], agent_params["goal_pos"]["y"])
+        goal_dist = agent_params["goal_dist"]
+        rrt_iters = agent_params["rrt_iters"]
+        step = agent_params["step_size"]
+        ccd = agent_params["near_radius"]
+        self.spin_rate = agent_params["spin_rate"]
 
         # get map data from server
         self.map_topic = rospy.get_param("/map_topic")
@@ -47,18 +53,23 @@ class DMARRTAgent(object):
         self.pos = self.start
         self.curr_plan_id = 0  # ID of the node in the current plan we are at
         self.latest_movement_timestamp = rospy.Time.now()
-        self.movement_dt = agent_params['movement_dt']
+        self.movement_dt = agent_params["movement_dt"]
 
         # set our RRT implementation
         self.rrt = RRTstar(
-            start_pos, goal_pos, map_data, goal_dist,
-            step_size=step, near_radius=ccd, max_iter=rrt_iters
+            start_pos,
+            goal_pos,
+            map_data,
+            goal_dist,
+            step_size=step,
+            near_radius=ccd,
+            max_iter=rrt_iters,
         )
 
         # Send and track robot positions
         self.tf_broadcaster = tf.TransformBroadcaster()
         # self.tf_listener = tf.TransformListener()
-        
+
         # curr_plan is the currently executing plan; best_plan is a
         #    lower-cost path than curr_plan, if one exists.
         self.curr_plan = None
@@ -74,7 +85,9 @@ class DMARRTAgent(object):
         self.plan_bid_pub = rospy.Publisher("plan_bids", PlanBid, queue_size=10)
 
         # be ready for updated waypoints from the winner
-        self.waypoints_pub = rospy.Publisher(self.identifier + "/waypoints", PathRosMsg, queue_size=10)
+        self.waypoints_pub = rospy.Publisher(
+            self.identifier + "/waypoints", PathRosMsg, queue_size=10
+        )
 
         # be ready for winner ID messages
         rospy.Subscriber("winner_id", WinnerID, self.winner_id_cb)
@@ -91,11 +104,13 @@ class DMARRTAgent(object):
         self.static_tf_broadcaster.sendTransform([own_map_tf])
 
         # optionally publish RRT tree
-        self.rrt_tree_pub = rospy.Publisher(self.identifier + "/rrt/tree", Marker, queue_size=10)
+        self.rrt_tree_pub = rospy.Publisher(
+            self.identifier + "/rrt/tree", Marker, queue_size=10
+        )
         self.tree_marker = self.setup_tree_marker()
 
         rospy.loginfo(self.identifier + " has initialized.")
-        
+
         # Setup the spin
         rospy.Timer(rospy.Duration(1.0 / self.spin_rate), self.spin)
 
@@ -131,7 +146,6 @@ class DMARRTAgent(object):
         """
         self.peer_waypoints[msg.header.frame_id] = msg.poses
 
-
     def spin_once(self):
         """
         Individual component of DMA-RRT as described in algorithm 4
@@ -140,10 +154,6 @@ class DMARRTAgent(object):
         If this agent holds the replanning token, it will update its
         internal plan and broadcast the next winner. Otw, it will
         broadcast its own PPI bid.
-
-        If this agent holds the goal claiming token, it will claim
-        its favorite goal and broadcast the next winner. Otw, it will
-        broadcast its own new goal bid.
         """
         # Move the agent by one timestep.
         curr_time = rospy.Time.now()
@@ -175,11 +185,15 @@ class DMARRTAgent(object):
             if len(self.plan_bids) > 0:
                 # select a winner based on bids
                 winner_bid = max(self.plan_bids.values())
-                winner_ids = [id for id, bid in self.plan_bids.items() if bid == winner_bid]
+                winner_ids = [
+                    id for id, bid in self.plan_bids.items() if bid == winner_bid
+                ]
                 winner_id = random.choice(winner_ids)  # break bid ties with randomness
 
                 # broadcast new tokenholder
-                self.plan_token_holder = False # Set to false here in case we get the token back.
+                self.plan_token_holder = (
+                    False  # Set to false here in case we get the token back.
+                )
                 self.publish_winner_id(winner_id)
 
                 # broadcast own waypoints
@@ -201,7 +215,7 @@ class DMARRTAgent(object):
             winner_id_msg.header.stamp = rospy.Time.now()
             winner_id_msg.header.frame_id = self.identifier
             winner_id_msg.winner_id = winner_id
-            
+
             self.winner_id_pub.publish(winner_id_msg)
 
     def publish_plan_bid(self, bid):
@@ -234,7 +248,7 @@ class DMARRTAgent(object):
                 pose.pose.position.y = node.y
                 pose.pose.position.z = 0.0  # TODO(marcus): extend to 3D
                 pose.pose.orientation.w = 1.0  # TODO(marcus): include orientation info
-                
+
                 path_msg.poses[i] = pose
 
             self.waypoints_pub.publish(path_msg)
@@ -250,7 +264,9 @@ class DMARRTAgent(object):
             for node in nodes:
                 if node.parent:
                     self.tree_marker.points.append(Point(node.x, node.y, 0.0))
-                    self.tree_marker.points.append(Point(node.parent.x, node.parent.y, 0.0))
+                    self.tree_marker.points.append(
+                        Point(node.parent.x, node.parent.y, 0.0)
+                    )
 
             self.rrt_tree_pub.publish(self.tree_marker)
 
@@ -274,9 +290,9 @@ class DMARRTAgent(object):
             if curr_node:
                 trans = [curr_node.x, curr_node.y, 0.0]
                 quat = [0, 0, 0, 1]  # TODO(marcus): add this dimensionality
-                self.tf_broadcaster.sendTransform(trans, quat, timestamp,
-                                                self.body_frame,
-                                                self.own_map_frame_id)
+                self.tf_broadcaster.sendTransform(
+                    trans, quat, timestamp, self.body_frame, self.own_map_frame_id
+                )
 
                 self.pos = (curr_node.x, curr_node.y)
 
@@ -351,10 +367,14 @@ class DMARRTAgent(object):
                     if i < start_id:
                         path.nodes[i].stamp = rospy.Time.from_sec(0.0)
                     else:
-                        path.nodes[i].stamp = start_time + rospy.Duration(i * self.movement_dt)    
+                        path.nodes[i].stamp = start_time + rospy.Duration(
+                            i * self.movement_dt
+                        )
             else:
                 for i in range(len(path.nodes)):
-                    path.nodes[i].stamp = start_time + rospy.Duration(i * self.movement_dt)            
+                    path.nodes[i].stamp = start_time + rospy.Duration(
+                        i * self.movement_dt
+                    )
 
         return path
 
@@ -374,7 +394,7 @@ class DMARRTAgent(object):
                 a Path object similar to `path` but with collision-free
                     timestamps on each node.
         """
-        for i in range(1,len(path.nodes)):
+        for i in range(1, len(path.nodes)):
             # Check for collisions with any other node:
             for id, other_path in other_agent_plans.items():
                 if other_path:
@@ -389,11 +409,11 @@ class DMARRTAgent(object):
                                 path.nodes[i].stamp = revised_stamp
 
                             # Update all nodes after that one to have higher timetsamps.
-                            for node in path.nodes[i+1:]:
+                            for node in path.nodes[i + 1 :]:
                                 revised_stamp += 1
                                 node.stamp = revised_stamp
 
-        path.ts_dict = {node.stamp : node for node in path.nodes}
+        path.ts_dict = {node.stamp: node for node in path.nodes}
         return path
 
 

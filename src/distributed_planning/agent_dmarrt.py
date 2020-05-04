@@ -41,11 +41,7 @@ class DMARRTAgent(object):
         self.map_topic = rospy.get_param("/map_topic")
         map_data = rospy.wait_for_message(self.map_topic, OccupancyGrid)
 
-        # Keeps track of other agents' plans so that we can
-        #   add the other agents as obstacles when replanning:
-        self.other_agent_plans = {}
-
-        # Initial state and RRT planner
+        # Initial state
         self.start = start_pos
         self.goal = goal_pos
         self.pos = self.start
@@ -53,6 +49,7 @@ class DMARRTAgent(object):
         self.latest_movement_timestamp = rospy.Time.now()
         self.movement_dt = agent_params['movement_dt']
 
+        # set our RRT implementation
         self.rrt = RRTstar(
             start_pos, goal_pos, map_data, goal_dist,
             step_size=step, near_radius=ccd, max_iter=rrt_iters
@@ -67,6 +64,7 @@ class DMARRTAgent(object):
         self.curr_plan = None
         self.best_plan = None
 
+        # manage DMA-RRT bid and waypoint info
         self.plan_bids = {}
         self.peer_waypoints = {}
         self.plan_token_holder = rospy.get_param("~has_token", False)
@@ -101,6 +99,14 @@ class DMARRTAgent(object):
         # Setup the spin
         rospy.Timer(rospy.Duration(1.0 / self.spin_rate), self.spin)
 
+    def spin(self, event):
+        """
+        The main loop for the Agent
+        """
+        while not rospy.is_shutdown():
+            if rospy.get_param("/run_sim"):
+                self.spin_once()
+
     def plan_bid_cb(self, msg):
         """
         Update internal state to reflect other agent's PPI bid.
@@ -114,21 +120,17 @@ class DMARRTAgent(object):
 
     def winner_id_cb(self, msg):
         """
+        Update our token holder status
         """
         if msg.winner_id == self.identifier:
             self.plan_token_holder = True
 
     def waypoint_cb(self, msg):
         """
+        Update waypoints as they're broadcasted
         """
         self.peer_waypoints[msg.header.frame_id] = msg.poses
 
-    def spin(self, event):
-        """
-        """
-        while not rospy.is_shutdown():
-            if rospy.get_param("/run_sim"):
-                self.spin_once()
 
     def spin_once(self):
         """
@@ -192,6 +194,7 @@ class DMARRTAgent(object):
 
     def publish_winner_id(self, winner_id):
         """
+        Broadcast the token winner
         """
         if not rospy.is_shutdown() and self.winner_id_pub.get_num_connections() > 0:
             winner_id_msg = WinnerID()
@@ -203,6 +206,7 @@ class DMARRTAgent(object):
 
     def publish_plan_bid(self, bid):
         """
+        Broadcast our bid for the token
         """
         if not rospy.is_shutdown() and self.plan_bid_pub.get_num_connections() > 0:
             bid_msg = PlanBid()
@@ -214,6 +218,7 @@ class DMARRTAgent(object):
 
     def publish_waypoints(self, plan):
         """
+        Broadcast our waypoints
         """
         if not rospy.is_shutdown() and self.waypoints_pub.get_num_connections() > 0:
             path_msg = PathRosMsg()
@@ -236,6 +241,7 @@ class DMARRTAgent(object):
 
     def publish_rrt_tree(self, nodes):
         """
+        Broadcast our RRT tree
         """
         if not rospy.is_shutdown() and self.rrt_tree_pub.get_num_connections() > 0:
             self.tree_marker.points = []
@@ -276,6 +282,10 @@ class DMARRTAgent(object):
 
     def setup_tree_marker(self):
         """
+        Create a tree marker for visualization
+
+        Returns:
+            visualization_msgs.msg.Marker
         """
         tree_marker = Marker()
         tree_marker.points = []
@@ -292,6 +302,9 @@ class DMARRTAgent(object):
     def at_goal(self):
         """
         Checks if the agent's current location is the goal location.
+
+        Returns:
+            bool
         """
         dist = np.sqrt(
             (self.pos[0] - self.goal[0]) ** 2 + (self.pos[1] - self.goal[1]) ** 2
@@ -319,6 +332,10 @@ class DMARRTAgent(object):
 
     def allocate_time_to_path(self, path, start_time):
         """
+        Distribute time to nodes in path
+
+        Returns:
+            Path
         """
         if path.nodes:
             if self.curr_plan:

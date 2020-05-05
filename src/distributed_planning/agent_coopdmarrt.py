@@ -1,10 +1,8 @@
 #!/usr/bin/env python
-import random
+import math
 import numpy as np
+import random
 import yaml
-
-from distributed_planning.msg import GoalBid, PlanBid, WinnerID
-from rrtstar import RRTstar, Path
 
 import rospy
 import tf
@@ -19,12 +17,14 @@ from geometry_msgs.msg import (
     Point,
     PoseWithCovarianceStamped,
 )
-from nav_msgs.msg import Path as PathRosMsg
 from nav_msgs.msg import OccupancyGrid, MapMetaData
 from visualization_msgs.msg import Marker
 
+from rrtstar import RRTstar, Path
+from distributed_planning.msg import GoalBid, PlanBid, WinnerID, Estop, EstopWaypoints
 
-class DMARRTAgent(object):
+
+class CoopDMARRTAgent(object):
     """
     An Agent that uses DMA-RRT for distributed path planning
     """
@@ -80,18 +80,27 @@ class DMARRTAgent(object):
         self.peer_waypoints = {}
         self.plan_token_holder = rospy.get_param("~has_token", False)
 
+        # cooperative DMA-RRT emergency stop management
+        # for now, hardcode evenly spaced emergency stops along the broadcasted waypoints
+        self.num_estops = 2
+        self.check_estops = True
+
         # be ready for replanning bids
         rospy.Subscriber("plan_bids", PlanBid, self.plan_bid_cb)
         self.plan_bid_pub = rospy.Publisher("plan_bids", PlanBid, queue_size=10)
 
         # be ready for updated waypoints from the winner
         self.waypoints_pub = rospy.Publisher(
-            self.identifier + "/waypoints", PathRosMsg, queue_size=10
+            self.identifier + "/waypoints", EstopWaypoints, queue_size=10
         )
 
         # be ready for winner ID messages
         rospy.Subscriber("winner_id", WinnerID, self.winner_id_cb)
         self.winner_id_pub = rospy.Publisher("winner_id", WinnerID, queue_size=10)
+
+        # be ready for emergency stops
+        rospy.Subscriber("estop", Estop, self.estop_cb)
+        self.estop_pub = rospy.Publisher("estop", Estop, queue_size=10)
 
         # publish static tf for private map frame
         self.own_map_frame_id = "/" + self.identifier + "_map"
@@ -136,6 +145,9 @@ class DMARRTAgent(object):
     def winner_id_cb(self, msg):
         """
         Update our token holder status
+
+        Params:
+            msg distributed_planning.msg.WinnerID
         """
         if msg.winner_id == self.identifier:
             self.plan_token_holder = True
@@ -146,14 +158,54 @@ class DMARRTAgent(object):
         """
         self.peer_waypoints[msg.header.frame_id] = msg.poses
 
+    def estop_cb(self, msg):
+        """
+        A peer told us to stop
+
+        Params:
+            msg distributed_planning.msg.Estop
+        """
+        if not msg.recipient_id == self.identifier:
+            return
+
+        # truncate self.curr_plan at msg.pose
+        # assume we're doing 2D mapping
+        nodes = list(map(lambda n: (n.x, n.y, 0.0), self.curr_plan.nodes))
+        i = nodes.index(msg.pose.position)
+        self.curr_plan = self.curr_plan[:i]
+        self.check_estops = False
+
+    def estop_check(self, peer_id):
+        """
+        Emergency stop check of cooperative DMA-RRT as described in algorithm 7 from Desaraju/How 2012.
+
+        Look at a conflicting peer's emergency stops to determine if asking an agent to apply an emergency stop will result in lower global cost.
+        """
+        if not self.check_estops:
+            return
+
+        estops = {}
+
+        # look backwards in their estops
+        for es in reversed(self.peer_waypoints[peer_id].estops):
+            # truncate their path and check for conflict
+            # if no conflict, calculate total_cost = cost of self + cost of peer
+            total_cost = 0.0
+            estops[node] = total_cost
+
+        # get the min total_cost from estops
+        # broadcast
+
     def spin_once(self):
         """
-        Individual component of DMA-RRT as described in algorithm 4
+        Individual component of DMA-RRT as described in algorithm 6
         from Desaraju/How 2012.
 
         If this agent holds the replanning token, it will update its
         internal plan and broadcast the next winner. Otw, it will
         broadcast its own PPI bid.
+
+        This agent may also check peer emergency stops to move towards a more globally optimized path
         """
         # Move the agent by one timestep.
         curr_time = rospy.Time.now()
@@ -177,7 +229,7 @@ class DMARRTAgent(object):
             self.curr_plan = self.best_plan
 
             # Solve collisions with time reallocation
-            # self.curr_plan = DMARRTAgent.multiagent_aware_time_reallocmultiagent_aware_time_realloc(
+            # self.curr_plan = CoopDMARRTAgent.multiagent_aware_time_reallocmultiagent_aware_time_realloc(
             #     self.curr_plan, self.other_agent_plans
             # )
 
@@ -235,7 +287,7 @@ class DMARRTAgent(object):
         Broadcast our waypoints
         """
         if not rospy.is_shutdown() and self.waypoints_pub.get_num_connections() > 0:
-            path_msg = PathRosMsg()
+            path_msg = EstopWaypoints()
             path_msg.header.stamp = rospy.Time.now()
             path_msg.header.frame_id = self.own_map_frame_id
             path_msg.poses = [PoseStamped() for i in range(len(plan.nodes))]
@@ -250,6 +302,13 @@ class DMARRTAgent(object):
                 pose.pose.orientation.w = 1.0  # TODO(marcus): include orientation info
 
                 path_msg.poses[i] = pose
+
+            # mark evenly spaced poses along the path as estops
+            path_msg.estops = []
+            spacing = math.floor(len(plan.nodes) / (self.num_estops + 1))
+            for n in range(1, self.num_estops + 1):
+                estop = path_msg.poses[n * spacing]
+                path_msg.estops.push(estop)
 
             self.waypoints_pub.publish(path_msg)
 
@@ -419,6 +478,6 @@ class DMARRTAgent(object):
 
 if __name__ == "__main__":
     rospy.init_node("agent", anonymous=True)
-    agent = DMARRTAgent()
+    agent = CoopDMARRTAgent()
 
     rospy.spin()

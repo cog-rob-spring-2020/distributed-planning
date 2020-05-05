@@ -54,6 +54,15 @@ class ContinuationAgent(DMARRTAgent):
             self.publish_new_tf(curr_time)
             self.latest_movement_timestamp = curr_time
 
+        # create a new plan to the goal
+        new_plan = self.create_new_plan()
+        self.publish_rrt_tree(self.rrt.node_list)
+
+        # Assign first "current path" found
+        if not self.curr_plan:
+            self.curr_plan = new_plan
+        self.best_plan = new_plan
+
         bid = None
         if self.at_goal() and len(self.queue) > 0:
             # we're at the goal and there are more goals on the queue
@@ -63,51 +72,44 @@ class ContinuationAgent(DMARRTAgent):
             # we're at the goal and there are no more goals on the queue
             # no more replanning necessary!
             bid = max(bid, -1000.0)
-        elif not self.at_goal():
-            # create a new plan to the goal
-            new_plan = self.create_new_plan()
-            self.publish_rrt_tree(self.rrt.node_list)
-
-            # Assign first "current path" found
-            if not self.curr_plan:
-                self.curr_plan = new_plan
-            self.best_plan = new_plan
 
         if not self.plan_token_holder:
             # compute a bid based on a comparison of the current and best plans
             bid = max(bid, self.curr_plan.cost - self.best_plan.cost)
             # broadcast plan bid
             self.publish_plan_bid(bid)
-        elif self.plan_token_holder and self.at_goal():
+            return
+
+        # we know we have the token
+        if self.at_goal():
             # we get to pick a new goal and update the queue (assuming goals are still on the queue)
-            # we won't be doing any planning this round, but we will next rounds
+            # we won't be doing any planning this round, but we will next round
             if len(self.queue) > 0:
-                self.goal = self.queue.pop(0).point
+                self.goal = self.queue.pop(0)
                 msg = Queue(goals=self.queue)
                 self.queue_pub(msg)
 
             # hand the token over to a new agent
-            self.plan_token_holder = False
             if len(self.plan_bids) > 0:
                 self.hand_over_token()
-
-        elif self.plan_token_holder and not self.at_goal():
-            # Replan to new best path
-            self.curr_plan = self.best_plan
-
-            # broadcast own waypoints
-            self.publish_waypoints(self.best_plan)
-
-            # Solve collisions with time reallocation
-            # self.curr_plan = ContinuationAgent.multiagent_aware_time_reallocmultiagent_aware_time_realloc(
-            #     self.curr_plan, self.other_agent_plans
-            # )
-
-            # Broadcast the new winner of the bidding round
-            # broadcast new tokenholder
             self.plan_token_holder = False
-            if len(self.plan_bids) > 0:
-                self.hand_over_token()
+            return
+
+        # Replan to new best path
+        self.curr_plan = self.best_plan
+
+        # broadcast own waypoints
+        self.publish_waypoints(self.best_plan)
+
+        # Solve collisions with time reallocation
+        # self.curr_plan = ContinuationAgent.multiagent_aware_time_reallocmultiagent_aware_time_realloc(
+        #     self.curr_plan, self.other_agent_plans
+        # )
+
+        # hand the token over to a new agent
+        if len(self.plan_bids) > 0:
+            self.hand_over_token()
+        self.plan_token_holder = False
 
     def hand_over_token(self):
         """

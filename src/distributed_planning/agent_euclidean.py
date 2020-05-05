@@ -39,6 +39,17 @@ class EuclideanAgent(DMARRTAgent):
         """
         self.queue = msg.goals
 
+if len(self.queue) > 0:
+                # pick the closest goal by Euclidean distance
+                eucl = lambda g: np.linalg.norm(
+                    np.array((g.x, g.y))
+                    - np.array((self.rrt.curr_pos.x, self.rrt.curr_pos.y))
+                )
+                i = np.argmin(map(eucl, self.queue))
+                self.goal = self.queue.pop(i)
+                msg = Queue(goals=self.queue)
+                self.queue_pub(msg)
+
     def spin_once(self):
         """
         An extended version of the individual component of DMA-RRT as described in algorithm 4
@@ -55,6 +66,15 @@ class EuclideanAgent(DMARRTAgent):
             self.publish_new_tf(curr_time)
             self.latest_movement_timestamp = curr_time
 
+        # create a new plan to the goal
+        new_plan = self.create_new_plan()
+        self.publish_rrt_tree(self.rrt.node_list)
+
+        # Assign first "current path" found
+        if not self.curr_plan:
+            self.curr_plan = new_plan
+        self.best_plan = new_plan
+
         bid = None
         if self.at_goal() and len(self.queue) > 0:
             # we're at the goal and there are more goals on the queue
@@ -64,24 +84,18 @@ class EuclideanAgent(DMARRTAgent):
             # we're at the goal and there are no more goals on the queue
             # no more replanning necessary!
             bid = max(bid, -1000.0)
-        elif not self.at_goal():
-            # create a new plan to the goal
-            new_plan = self.create_new_plan()
-            self.publish_rrt_tree(self.rrt.node_list)
-
-            # Assign first "current path" found
-            if not self.curr_plan:
-                self.curr_plan = new_plan
-            self.best_plan = new_plan
 
         if not self.plan_token_holder:
             # compute a bid based on a comparison of the current and best plans
             bid = max(bid, self.curr_plan.cost - self.best_plan.cost)
             # broadcast plan bid
             self.publish_plan_bid(bid)
-        elif self.plan_token_holder and self.at_goal():
+            return
+
+        # we know we have the token
+        if self.at_goal():
             # we get to pick a new goal and update the queue (assuming goals are still on the queue)
-            # we won't be doing any planning this round, but we will next rounds
+            # we won't be doing any planning this round, but we will next round
             if len(self.queue) > 0:
                 # pick the closest goal by Euclidean distance
                 eucl = lambda g: np.linalg.norm(
@@ -94,27 +108,26 @@ class EuclideanAgent(DMARRTAgent):
                 self.queue_pub(msg)
 
             # hand the token over to a new agent
-            self.plan_token_holder = False
             if len(self.plan_bids) > 0:
                 self.hand_over_token()
-
-        elif self.plan_token_holder and not self.at_goal():
-            # Replan to new best path
-            self.curr_plan = self.best_plan
-
-            # broadcast own waypoints
-            self.publish_waypoints(self.best_plan)
-
-            # Solve collisions with time reallocation
-            # self.curr_plan = EuclideanAgent.multiagent_aware_time_reallocmultiagent_aware_time_realloc(
-            #     self.curr_plan, self.other_agent_plans
-            # )
-
-            # Broadcast the new winner of the bidding round
-            # broadcast new tokenholder
             self.plan_token_holder = False
-            if len(self.plan_bids) > 0:
-                self.hand_over_token()
+            return
+
+        # Replan to new best path
+        self.curr_plan = self.best_plan
+
+        # broadcast own waypoints
+        self.publish_waypoints(self.best_plan)
+
+        # Solve collisions with time reallocation
+        # self.curr_plan = ContinuationAgent.multiagent_aware_time_reallocmultiagent_aware_time_realloc(
+        #     self.curr_plan, self.other_agent_plans
+        # )
+
+        # hand the token over to a new agent
+        if len(self.plan_bids) > 0:
+            self.hand_over_token()
+        self.plan_token_holder = False
 
     def hand_over_token(self):
         """

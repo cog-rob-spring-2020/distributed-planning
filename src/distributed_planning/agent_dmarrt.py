@@ -3,11 +3,7 @@ import random
 import numpy as np
 import yaml
 
-from distributed_planning.msg import GoalBid, PlanBid, WinnerID
-from rrtstar import RRTstar, Path
-
 import rospy
-import tf
 import tf
 import tf2_ros
 from std_msgs.msg import Header
@@ -20,8 +16,11 @@ from geometry_msgs.msg import (
     PoseWithCovarianceStamped,
 )
 from nav_msgs.msg import Path as PathRosMsg
-from nav_msgs.msg import OccupancyGrid, MapMetaData
+from nav_msgs.msg import OccupancyGrid
 from visualization_msgs.msg import Marker
+
+from distributed_planning.msg import PlanBid, WinnerID
+from rrtstar import RRTstar, Path
 
 
 class DMARRTAgent(object):

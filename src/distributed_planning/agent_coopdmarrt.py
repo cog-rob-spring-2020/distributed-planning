@@ -6,7 +6,6 @@ import yaml
 
 import rospy
 import tf
-import tf
 import tf2_ros
 from std_msgs.msg import Header
 from geometry_msgs.msg import (
@@ -17,11 +16,11 @@ from geometry_msgs.msg import (
     Point,
     PoseWithCovarianceStamped,
 )
-from nav_msgs.msg import OccupancyGrid, MapMetaData
+from nav_msgs.msg import OccupancyGrid
 from visualization_msgs.msg import Marker
 
 from rrtstar import RRTstar, Path
-from distributed_planning.msg import GoalBid, PlanBid, WinnerID, Estop, EstopWaypoints
+from distributed_planning.msg import PlanBid, WinnerID, Estop, EstopWaypoints
 
 
 class CoopDMARRTAgent(object):

@@ -36,7 +36,7 @@ class ContinuationAgent(DMARRTAgent):
         Params:
             msg distributed_planning.msg.Queue
         """
-        self.queue = msg.goals
+        self.queue = msg.goal_points
 
     def spin_once(self):
         """

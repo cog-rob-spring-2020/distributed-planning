@@ -178,8 +178,17 @@ class ContinuationAgent(object):
             self.publish_new_tf(curr_time)
             self.latest_movement_timestamp = curr_time
 
-        # TODO: do we need a timeout here instead of rrt_iters???
-        if not self.at_goal():
+        bid = None
+        if self.at_goal() and len(self.queue) > 0:
+            # we're at the goal and there are more goals on the queue
+            # bid high to get the replanning token next round
+            bid = max(bid, 10000.0)
+        elif self.at_goal() and len(self.queue) == 0:
+            # we're at the goal and there are no more goals on the queue
+            # no more replanning necessary!
+            bid = max(bid, -1000.0)
+        elif not self.at_goal():
+            # create a new plan to the goal
             new_plan = self.create_new_plan()
             self.publish_rrt_tree(self.rrt.node_list)
 
@@ -188,11 +197,30 @@ class ContinuationAgent(object):
                 self.curr_plan = new_plan
             self.best_plan = new_plan
 
-        # TODO: check if at_goal and token_holder, at which point we need to plan against a new goal and broadcast a queue change
+        if not self.plan_token_holder:
+            # compute a bid based on a comparison of the current and best plans
+            bid = max(bid, self.curr_plan.cost - self.best_plan.cost)
+            # broadcast plan bid
+            self.publish_plan_bid(bid)
+        elif self.plan_token_holder and self.at_goal():
+            # we get to pick a new goal and update the queue (assuming goals are still on the queue)
+            # we won't be doing any planning this round, but we will next rounds
+            if len(self.queue) > 0:
+                self.goal = self.queue.pop(0).point
+                msg = Queue(goals=self.queue)
+                self.queue_pub(msg)
 
-        if self.plan_token_holder:
+            # hand the token over to a new agent
+            self.plan_token_holder = False
+            if len(self.plan_bids) > 0:
+                self.hand_over_token()
+
+        elif self.plan_token_holder and not self.at_goal():
             # Replan to new best path
             self.curr_plan = self.best_plan
+
+            # broadcast own waypoints
+            self.publish_waypoints(self.best_plan)
 
             # Solve collisions with time reallocation
             # self.curr_plan = ContinuationAgent.multiagent_aware_time_reallocmultiagent_aware_time_realloc(
@@ -200,41 +228,21 @@ class ContinuationAgent(object):
             # )
 
             # Broadcast the new winner of the bidding round
+            # broadcast new tokenholder
+            self.plan_token_holder = False
             if len(self.plan_bids) > 0:
-                # select a winner based on bids
-                winner_bid = max(self.plan_bids.values())
-                winner_ids = [
-                    id for id, bid in self.plan_bids.items() if bid == winner_bid
-                ]
-                winner_id = random.choice(winner_ids)  # break bid ties with randomness
+                self.hand_over_token()
 
-                # broadcast new tokenholder
-                self.plan_token_holder = (
-                    False  # Set to false here in case we get the token back.
-                )
-                self.publish_winner_id(winner_id)
-
-                # broadcast own waypoints
-                self.publish_waypoints(self.best_plan)
-
-        if self.at_goal():
-            if len(self.queue) == 0:
-                # no more replanning necessary!
-                self.publish_plan_bid(-1000.0)
-            else:
-                # change your goal to the next one on the queue
-                # bid high to replan
-                # TODO: use max float to make sure we win the token?
-                self.publish_plan_bid(10000.0)
-        else:
-            # broadcast plan bid
-            self.publish_plan_bid(self.curr_plan.cost - self.best_plan.cost)
-
-    def publish_winner_id(self, winner_id):
+    def hand_over_token(self):
         """
         Broadcast the token winner
         """
         if not rospy.is_shutdown() and self.winner_id_pub.get_num_connections() > 0:
+            # select a winner based on bids
+            winner_bid = max(self.plan_bids.values())
+            winner_ids = [id for id, bid in self.plan_bids.items() if bid == winner_bid]
+            winner_id = random.choice(winner_ids)  # break bid ties with randomness
+
             winner_id_msg = WinnerID()
             winner_id_msg.header.stamp = rospy.Time.now()
             winner_id_msg.header.frame_id = self.identifier

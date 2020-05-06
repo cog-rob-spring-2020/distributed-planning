@@ -39,17 +39,6 @@ class EuclideanAgent(DMARRTAgent):
         """
         self.queue = msg.goals
 
-        if len(self.queue) > 0:
-                # pick the closest goal by Euclidean distance
-                eucl = lambda g: np.linalg.norm(
-                    np.array((g.x, g.y))
-                    - np.array((self.rrt.curr_pos.x, self.rrt.curr_pos.y))
-                )
-                i = np.argmin(map(eucl, self.queue))
-                self.goal = self.queue.pop(i)
-                msg = Queue(goals=self.queue)
-                self.queue_pub(msg)
-
     def spin_once(self):
         """
         An extended version of the individual component of DMA-RRT as described in algorithm 4

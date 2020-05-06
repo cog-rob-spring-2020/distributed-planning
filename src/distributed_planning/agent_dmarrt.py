@@ -19,7 +19,7 @@ from nav_msgs.msg import Path as PathRosMsg
 from nav_msgs.msg import OccupancyGrid
 from visualization_msgs.msg import Marker
 
-from distributed_planning.msg import PlanBid, WinnerID
+from distributed_planning.msg import PlanBid, WinnerID#, WinnerIDWaypoints
 from rrtstar import RRTstar, Path
 
 
@@ -83,14 +83,18 @@ class DMARRTAgent(object):
         rospy.Subscriber("plan_bids", PlanBid, self.plan_bid_cb)
         self.plan_bid_pub = rospy.Publisher("plan_bids", PlanBid, queue_size=10)
 
+        # be ready for winner ID messages
+        rospy.Subscriber("winner_id", WinnerID, self.winner_id_cb)
+        self.winner_id_pub = rospy.Publisher("winner_id", WinnerID, queue_size=10)
+
         # be ready for updated waypoints from the winner
         self.waypoints_pub = rospy.Publisher(
             self.identifier + "/waypoints", PathRosMsg, queue_size=10
         )
 
-        # be ready for winner ID messages
-        rospy.Subscriber("winner_id", WinnerID, self.winner_id_cb)
-        self.winner_id_pub = rospy.Publisher("winner_id", WinnerID, queue_size=10)
+        #be ready for winner ID / waypoint messages
+        rospy.Subscriber("winner_and_waypoints", WinnerIDWaypoints, self.publish_winner_id_and_waypoints_cb)
+        self.winner_id_and_waypoints_pub = rospy.Publisher("winner_and_waypoints", WinnerIDWaypoints, queue_size=10)
 
         # publish static tf for private map frame
         self.own_map_frame_id = "/" + self.identifier + "_map"
@@ -113,13 +117,7 @@ class DMARRTAgent(object):
         # Setup the spin
         rospy.Timer(rospy.Duration(1.0 / self.spin_rate), self.spin)
 
-    def spin(self, event):
-        """
-        The main loop for the Agent
-        """
-        while not rospy.is_shutdown():
-            if rospy.get_param("/run_sim"):
-                self.spin_once()
+    ####################################################################
 
     def plan_bid_cb(self, msg):
         """
@@ -145,77 +143,7 @@ class DMARRTAgent(object):
         """
         self.peer_waypoints[msg.header.frame_id] = msg.poses
 
-    def spin_once(self):
-        """
-        Individual component of DMA-RRT as described in algorithm 4
-        from Desaraju/How 2012.
-
-        If this agent holds the replanning token, it will update its
-        internal plan and broadcast the next winner. Otw, it will
-        broadcast its own PPI bid.
-        """
-        # Move the agent by one timestep.
-        curr_time = rospy.Time.now()
-        dt = curr_time - self.latest_movement_timestamp
-        if dt.to_sec() > self.movement_dt:
-            self.publish_new_tf(curr_time)
-            self.latest_movement_timestamp = curr_time
-
-        # TODO: do we need a timeout here instead of rrt_iters???
-        if not self.at_goal():
-            new_plan = self.create_new_plan()
-            self.publish_rrt_tree(self.rrt.node_list)
-
-            # Assign first "current path" found
-            if not self.curr_plan:
-                self.curr_plan = new_plan
-            self.best_plan = new_plan
-
-        if self.plan_token_holder:
-            # Replan to new best path
-            self.curr_plan = self.best_plan
-
-            # Solve collisions with time reallocation
-            # self.curr_plan = DMARRTAgent.multiagent_aware_time_reallocmultiagent_aware_time_realloc(
-            #     self.curr_plan, self.other_agent_plans
-            # )
-
-            # Broadcast the new winner of the bidding round
-            if len(self.plan_bids) > 0:
-                # select a winner based on bids
-                winner_bid = max(self.plan_bids.values())
-                winner_ids = [
-                    id for id, bid in self.plan_bids.items() if bid == winner_bid
-                ]
-                winner_id = random.choice(winner_ids)  # break bid ties with randomness
-
-                # broadcast new tokenholder
-                self.plan_token_holder = (
-                    False  # Set to false here in case we get the token back.
-                )
-                self.publish_winner_id(winner_id)
-
-                # broadcast own waypoints
-                self.publish_waypoints(self.best_plan)
-
-        if self.at_goal():
-            # no more replanning necessary!
-            self.publish_plan_bid(-1000.0)
-        else:
-            # broadcast plan bid
-            self.publish_plan_bid(self.curr_plan.cost - self.best_plan.cost)
-
-    def publish_winner_id(self, winner_id):
-        """
-        Broadcast the token winner
-        """
-        if not rospy.is_shutdown() and self.winner_id_pub.get_num_connections() > 0:
-            winner_id_msg = WinnerID()
-            winner_id_msg.header.stamp = rospy.Time.now()
-            winner_id_msg.header.frame_id = self.identifier
-            winner_id_msg.winner_id = winner_id
-
-            self.winner_id_pub.publish(winner_id_msg)
+    ####################################################################
 
     def publish_plan_bid(self, bid):
         """
@@ -228,6 +156,18 @@ class DMARRTAgent(object):
             bid_msg.bid = bid
 
             self.plan_bid_pub.publish(bid_msg)
+            
+    def publish_winner_id(self, winner_id):
+        """
+        Broadcast the token winner
+        """
+        if not rospy.is_shutdown() and self.winner_id_pub.get_num_connections() > 0:
+            winner_id_msg = WinnerID()
+            winner_id_msg.header.stamp = rospy.Time.now()
+            winner_id_msg.header.frame_id = self.identifier
+            winner_id_msg.winner_id = winner_id
+
+            self.winner_id_pub.publish(winner_id_msg)
 
     def publish_waypoints(self, plan):
         """
@@ -251,6 +191,32 @@ class DMARRTAgent(object):
                 path_msg.poses[i] = pose
 
             self.waypoints_pub.publish(path_msg)
+
+    # def publish_winner_id_and_waypoints(self, winner_id, plan):
+    #     """
+    #     Broadcast combined token winner and waypoints
+    #     """
+    #     if not rospy.is_shutdown() and self.winner_id_pub.get_num_connections() > 0:
+    #         msg = WinnerIDWaypoints()
+    #         msg.header.stamp = rospy.Time.now()
+    #         msg.header.frame_id = self.identifier
+    #         msg.winner_id = winner_id
+            
+    #         msg.path.poses = [PoseStamped() for i in range(len(plan.nodes))]
+    #         for i in range(len(plan.nodes)):
+    #             pose = PoseStamped()
+    #             node = plan.nodes[i]
+    #             pose.header.frame_id = self.own_map_frame_id
+    #             pose.header.stamp = node.stamp
+    #             pose.pose.position.x = node.x
+    #             pose.pose.position.y = node.y
+    #             pose.pose.position.z = 0.0  # TODO(marcus): extend to 3D
+    #             pose.pose.orientation.w = 1.0  # TODO(marcus): include orientation info
+
+    #             msg.path.poses[i] = pose
+
+    #         self.winner_id_and_waypoints_pub.publish(msg)
+
 
     def publish_rrt_tree(self, nodes):
         """
@@ -294,6 +260,82 @@ class DMARRTAgent(object):
                 )
 
                 self.pos = (curr_node.x, curr_node.y)
+
+    ####################################################################
+
+    def spin_once(self):
+        """
+        Individual component of DMA-RRT as described in algorithm 4
+        from Desaraju/How 2012.
+
+        If this agent holds the replanning token, it will update its
+        internal plan and broadcast the next winner. Otw, it will
+        broadcast its own PPI bid.
+        """
+        # Move the agent by one timestep.
+        curr_time = rospy.Time.now()
+        dt = curr_time - self.latest_movement_timestamp
+        if dt.to_sec() > self.movement_dt:
+            self.publish_new_tf(curr_time)
+            self.latest_movement_timestamp = curr_time
+
+        # TODO: do we need a timeout here instead of rrt_iters???
+        if not self.at_goal():
+            new_plan = self.create_new_plan()
+            self.publish_rrt_tree(self.rrt.node_list)
+
+            # Assign first "current path" found
+            if not self.curr_plan:
+                self.curr_plan = new_plan
+            self.best_plan = new_plan
+
+        if self.plan_token_holder:
+            # Replan to new best path
+            self.curr_plan = self.best_plan
+
+            # Solve collisions with time reallocation
+            # self.curr_plan = DMARRTAgent.multiagent_aware_time_reallocmultiagent_aware_time_realloc(
+            #     self.curr_plan, self.other_agent_plans
+            # )
+
+            # Broadcast the new winner of the bidding round
+            winner_id = self.identifier
+            if len(self.plan_bids) > 0:
+                # select a winner based on bids
+                winner_bid = max(self.plan_bids.values())
+                winner_ids = [
+                    id for id, bid in self.plan_bids.items() if bid == winner_bid
+                ]
+                winner_id = random.choice(winner_ids)  # break bid ties with randomness
+
+            # broadcast new tokenholder
+            self.plan_token_holder = (
+                False  # Set to false here in case we get the token back.
+            )
+            self.publish_winner_id(winner_id)
+
+            # broadcast own waypoints
+            self.publish_waypoints(self.best_plan)
+
+            #need to change to format below
+            # self.publish_winner_id_and_waypoints(winner_id, self.best_plan)
+
+        if self.at_goal():
+            # no more replanning necessary!
+            self.publish_plan_bid(-1000.0)
+        else:
+            # broadcast plan bid
+            self.publish_plan_bid(self.curr_plan.cost - self.best_plan.cost)
+
+    def spin(self, event):
+        """
+        The main loop for the Agent
+        """
+        while not rospy.is_shutdown():
+            if rospy.get_param("/run_sim"):
+                self.spin_once()
+
+    ####################################################################
 
     def setup_tree_marker(self):
         """

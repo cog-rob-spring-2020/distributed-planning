@@ -39,7 +39,7 @@ class EuclideanAgent(DMARRTAgent):
         """
         self.queue = msg.goals
 
-if len(self.queue) > 0:
+        if len(self.queue) > 0:
                 # pick the closest goal by Euclidean distance
                 eucl = lambda g: np.linalg.norm(
                     np.array((g.x, g.y))

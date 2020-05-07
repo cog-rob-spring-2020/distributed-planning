@@ -4,7 +4,8 @@ from math import sqrt
 from agent_dmarrt import DMARRTAgent
 from std_msgs.msg import Header
 from geometry_msgs.msg import Point
-from distributed_planning.msg import GoalBid, WinnerIDGoal
+from distributed_planning.msg import Goal, GoalBid, WinnerIDGoal
+
 
 class RewardQueueAgent(DMARRTAgent):
     """
@@ -15,25 +16,25 @@ class RewardQueueAgent(DMARRTAgent):
         # Keeps track of other agents' current goal bids at any given time
         self.goal_bids = {}
         self.goal_token_holder = False
-        
-        #list of goals organized in an order
-        self.queue = [] #ordered by priority, each element is ((x,y), reward)
 
-        #for path from goal to second goal
+        # list of goals organized in an order
+        self.queue = [] # ordered by priority, each element is ((x,y), reward)
+
+        # for path from goal to second goal
         self.second_plan = None
         self.second_goal = None
 
-        #Adding goals
+        # Adding goals
         rospy.Subscriber("add_goal", Goal, self.added_goal_cb)
 
-        #Removing goals
-        rospy.Subscriber("remove_goal", Point, self.removed_goal_cb)
+        # Removing goals
+        rospy.Subscriber("remove_goal", Goal, self.removed_goal_cb)
 
-        #goal and winner
+        # goal and winner
         rospy.Subscriber("winner_and_goal", WinnerIDGoal, self.winner_and_goal_cb)
         self.winner_and_goal_pub = rospy.Publisher("winner_and_goal", WinnerIDGoal, queue_size=10)
 
-        #goal bids
+        # goal bids
         rospy.Subscriber("goal_bids", GoalBid, self.goal_bid_cb)
         self.goal_bid_pub = rospy.Publisher("goal_bids", GoalBid, queue_size=10)
 
@@ -41,10 +42,10 @@ class RewardQueueAgent(DMARRTAgent):
 
     ####################################################################
 
-    def broadcast_winner_and_goal(self, winner_id, goal_id):
+    def broadcast_winner_and_goal(self, winner_id, goal_point):
         """
         Broadcasts the following message to the WinnerIDGoal topic
-        goal_id - (x, y)
+        goal_point - (x, y)
         other agents remove the specified goal
         """
         if not rospy.is_shutdown() and self.winner_and_goal_pub.get_num_connections() > 0:
@@ -54,20 +55,20 @@ class RewardQueueAgent(DMARRTAgent):
             msg.winner_id = winner_id
             
             goal = Point()
-            goal.x = goal_id[0]
-            goal.y = goal_id[1]
+            goal.x = goal_point[0]
+            goal.y = goal_point[1]
 
-            msg.goal_id = goal
+            msg.goal_point = goal
 
             self.winner_and_goal_pub.publish(msg)
 
-    def broadcast_goal_bid(self, bid, goal_id):
+    def broadcast_goal_bid(self, bid, goal_point):
         """
         Broadcasts the following message to the goal_bids topic:
 
         msg - message of type GoalBid
         msg.bid - agent's bid (reward - cost to get to goal) for current favorite goal in queue, given by `bid`
-        msg.goal_id - location of the goal this agent is bidding on, given by `bid_goal`
+        msg.goal_point - location of the goal this agent is bidding on, given by `bid_goal`
         """
         if not rospy.is_shutdown() and self.winner_and_goal_pub.get_num_connections() > 0:
             msg = GoalBid()
@@ -76,10 +77,10 @@ class RewardQueueAgent(DMARRTAgent):
             msg.bid = bid
 
             goal = Point()
-            goal.x = goal_id[0]
-            goal.y = goal_id[1]
+            goal.x = goal_point[0]
+            goal.y = goal_point[1]
 
-            msg.goal_id = goal
+            msg.goal_point = goal
 
             self.goal_bid_pub.publish(msg)
 
@@ -92,12 +93,10 @@ class RewardQueueAgent(DMARRTAgent):
         Remove the goal that the previous winner claimed from queue.
 
         msg - message of type WinnerIDGoal
-        msg.winner_id - unique ID of the agent who has won the goal claiming token
-        msg.goal_id - location of goal claimed by previous winner
         """
         if msg.winner_id == self.identifier:
             self.goal_token_holder = True
-        goal = (msg.goal_id.x, msg.goal_id.y)
+        goal = (msg.goal_point.x, msg.goal_point.y)
         self.queue_remove(goal)
 
     def goal_bid_cb(self, msg):
@@ -106,11 +105,9 @@ class RewardQueueAgent(DMARRTAgent):
         on the first goal in the queue.
         msg - message of type GoalBid
         msg.sender_id - unique ID of the agent who sent the message
-        msg.bid - agent's bid (reward - cost to get to goal) for current first goal in queue
-        msg.goal_id - location of the goal other agent is bidding on
         """
         if msg.sender_id != self.identifier:
-            self.goal_bids[msg.sender_id] = (msg.bid, (msg.goal_id.x, msg.goal_id.y))
+            self.goal_bids[msg.sender_id] = (msg.bid, (msg.goal_point.x, msg.goal_point.y))
 
     def added_goal_cb(self, msg):
         """
@@ -121,10 +118,8 @@ class RewardQueueAgent(DMARRTAgent):
         sampling (thus there is no sender ID because a single
         agent did not send the message in our implementation).
         msg - message of type Goal
-        msg.goal_id - location of the goal to be added
-        msg.reward - reward associated with that goal (e.g. from adaptive sampling)
         """
-        self.queue_insert((msg.goal_id.x, msg.goal_id.y), msg.reward)
+        self.queue_insert((msg.goal_point.x, msg.goal_point.y), msg.reward)
 
     def removed_goal_cb(self, msg):
         """
@@ -134,8 +129,7 @@ class RewardQueueAgent(DMARRTAgent):
         goals to the queue, modeling something like adaptive
         sampling (thus there is no sender ID because a single
         agent did not send the message in our implementation).
-        msg - message of type Point
-        msg.goal_id - location of the goal to be removed
+        msg - message of type Goal
         """
         self.queue_remove((msg.x, msg.y))
 
@@ -223,8 +217,7 @@ class RewardQueueAgent(DMARRTAgent):
 
         else:
             bid = abs(sqrt((self.pos[0]-self.queue[0])**2 + (self.pos[1]-self.queue[1])**2))
-            self.broadcast_goal_bid(bid, self.queue[0])
-            
+            self.broadcast_goal_bid(bid, self.queue[0]) 
 
         # TODO: do we need a timeout here instead of rrt_iters???
         if not self.at_goal():

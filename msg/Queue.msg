@@ -1,2 +1,2 @@
 Header header
-geometry_msgs/Point[] goals
+geometry_msgs/Point[] goal_points

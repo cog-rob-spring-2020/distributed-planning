@@ -13,18 +13,17 @@ from geometry_msgs.msg import (
     Transform,
     TransformStamped,
     Point,
-    PoseWithCovarianceStamped,
 )
 from nav_msgs.msg import Path as PathRosMsg
 from nav_msgs.msg import OccupancyGrid
 from visualization_msgs.msg import Marker
 
-from distributed_planning.msg import PlanBid, WinnerID#, WinnerIDWaypoints
+from distributed_planning.msg import PlanBid, WinnerID
 from rrtstar import RRTstar, Path
 
 
 class DMARRTAgent(object):
-    """
+    """`
     An Agent that uses DMA-RRT for distributed path planning
     """
 
@@ -91,10 +90,6 @@ class DMARRTAgent(object):
         self.waypoints_pub = rospy.Publisher(
             self.identifier + "/waypoints", PathRosMsg, queue_size=10
         )
-
-        #be ready for winner ID / waypoint messages
-        rospy.Subscriber("winner_and_waypoints", WinnerIDWaypoints, self.publish_winner_id_and_waypoints_cb)
-        self.winner_id_and_waypoints_pub = rospy.Publisher("winner_and_waypoints", WinnerIDWaypoints, queue_size=10)
 
         # publish static tf for private map frame
         self.own_map_frame_id = "/" + self.identifier + "_map"
@@ -191,32 +186,6 @@ class DMARRTAgent(object):
                 path_msg.poses[i] = pose
 
             self.waypoints_pub.publish(path_msg)
-
-    # def publish_winner_id_and_waypoints(self, winner_id, plan):
-    #     """
-    #     Broadcast combined token winner and waypoints
-    #     """
-    #     if not rospy.is_shutdown() and self.winner_id_pub.get_num_connections() > 0:
-    #         msg = WinnerIDWaypoints()
-    #         msg.header.stamp = rospy.Time.now()
-    #         msg.header.frame_id = self.identifier
-    #         msg.winner_id = winner_id
-            
-    #         msg.path.poses = [PoseStamped() for i in range(len(plan.nodes))]
-    #         for i in range(len(plan.nodes)):
-    #             pose = PoseStamped()
-    #             node = plan.nodes[i]
-    #             pose.header.frame_id = self.own_map_frame_id
-    #             pose.header.stamp = node.stamp
-    #             pose.pose.position.x = node.x
-    #             pose.pose.position.y = node.y
-    #             pose.pose.position.z = 0.0  # TODO(marcus): extend to 3D
-    #             pose.pose.orientation.w = 1.0  # TODO(marcus): include orientation info
-
-    #             msg.path.poses[i] = pose
-
-    #         self.winner_id_and_waypoints_pub.publish(msg)
-
 
     def publish_rrt_tree(self, nodes):
         """

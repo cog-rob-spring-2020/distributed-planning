@@ -1,3 +1,3 @@
 Header header
-Point goal_id
-Float64 reward
+geometry_msgs/Point goal_point
+float64 reward

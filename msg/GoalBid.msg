@@ -1,3 +1,5 @@
+# `frame_id` of the header must be the sender's personal identifier
+
 Header header
-string goal_id
 float64 bid
+geometry_msgs/Point goal_point

@@ -14,7 +14,6 @@ from geometry_msgs.msg import (
     Transform,
     TransformStamped,
     Point,
-    PoseWithCovarianceStamped,
 )
 from nav_msgs.msg import OccupancyGrid
 from visualization_msgs.msg import Marker

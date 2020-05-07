@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import rospy
+from math import sqrt
 from agent_dmarrt import DMARRTAgent
 from std_msgs.msg import Header
 from geometry_msgs.msg import Point
@@ -23,7 +24,7 @@ class RewardQueueAgent(DMARRTAgent):
         self.second_goal = None
 
         #Adding goals
-        rospy.Subscriber("add_goal", Point, self.added_goal_cb)
+        rospy.Subscriber("add_goal", Goal, self.added_goal_cb)
 
         #Removing goals
         rospy.Subscriber("remove_goal", Point, self.removed_goal_cb)
@@ -44,6 +45,7 @@ class RewardQueueAgent(DMARRTAgent):
         """
         Broadcasts the following message to the WinnerIDGoal topic
         goal_id - (x, y)
+        other agents remove the specified goal
         """
         if not rospy.is_shutdown() and self.winner_and_goal_pub.get_num_connections() > 0:
             msg = WinnerIDGoal()
@@ -176,7 +178,6 @@ class RewardQueueAgent(DMARRTAgent):
 
         The interaction component is handled using Agent callbacks.
         """
-        super(RewardQueueAgent, self).spin_once()
 
         """
         TODO:
@@ -192,6 +193,89 @@ class RewardQueueAgent(DMARRTAgent):
         #   broadcast winner (tells everyone to remove goal we claimed)
         # else:
         #   bid on our favorite goal in the queue
+                # Move the agent by one timestep.
+
+        curr_time = rospy.Time.now()
+        dt = curr_time - self.latest_movement_timestamp
+        if dt.to_sec() > self.movement_dt:
+            self.publish_new_tf(curr_time)
+            self.latest_movement_timestamp = curr_time
+
+        #handle goal situations
+        if self.goal_token_holder:
+            removed_goal = (None, None) #placeholder to avoid breaking queue_remove
+
+            if self.goal == None and len(self.queue) > 0:
+                self.goal = self.queue[0]
+                self.queue_remove(self.goal)
+                removed_goal = self.goal
+            elif self.second_goal == None and len(self.queue) > 0:
+                self.second_goal = self.queue[0]
+                self.queue_remove(self.second_goal)
+                removed_goal = self.second_goal
+                
+            max_agent = list(self.goal_bids.keys())[0]
+            for agent in self.goal_bids:
+                if self.goal_bids[agent][0] > self.goal_bids[max_agent][0] and self.goal_bids[agent][1] != removed_goal:
+                    max_agent = agent
+
+            self.broadcast_winner_and_goal(max_agent, removed_goal)
+
+        else:
+            bid = abs(sqrt((self.pos[0]-self.queue[0])**2 + (self.pos[1]-self.queue[1])**2))
+            self.broadcast_goal_bid(bid, self.queue[0])
+            
+
+        # TODO: do we need a timeout here instead of rrt_iters???
+        if not self.at_goal():
+            new_plan = self.create_new_plan()
+            self.publish_rrt_tree(self.rrt.node_list)
+
+            # Assign first "current path" found
+            if not self.curr_plan:
+                self.curr_plan = new_plan
+            self.best_plan = new_plan
+
+            # TODO: plan from first goal to second goal
+
+
+        if self.plan_token_holder:
+            # Replan to new best path
+            self.curr_plan = self.best_plan
+
+            # Solve collisions with time reallocation
+            # self.curr_plan = DMARRTAgent.multiagent_aware_time_reallocmultiagent_aware_time_realloc(
+            #     self.curr_plan, self.other_agent_plans
+            # )
+
+            # Broadcast the new winner of the bidding round
+            winner_id = self.identifier
+            if len(self.plan_bids) > 0:
+                # select a winner based on bids
+                winner_bid = max(self.plan_bids.values())
+                winner_ids = [
+                    id for id, bid in self.plan_bids.items() if bid == winner_bid
+                ]
+                winner_id = random.choice(winner_ids)  # break bid ties with randomness
+
+            # broadcast new tokenholder
+            self.plan_token_holder = (
+                False  # Set to false here in case we get the token back.
+            )
+            self.publish_winner_id(winner_id)
+
+            # broadcast own waypoints
+            self.publish_waypoints(self.best_plan)
+
+            #need to change to format below
+            # self.publish_winner_id_and_waypoints(winner_id, self.best_plan)
+
+        # broadcast plan bid
+        if self.at_goal():
+            # no more replanning necessary!
+            self.publish_plan_bid(-1000.0)
+        else:
+            self.publish_plan_bid(self.curr_plan.cost - self.best_plan.cost)
 
     def spin(self, event):
         """

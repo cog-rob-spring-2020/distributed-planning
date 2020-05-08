@@ -346,10 +346,7 @@ class DMARRTAgent(object):
             ts.transform.translation.y = self.pos[1]
             ts.transform.rotation.w = 1.0
 
-            try:
-                self.tf_broadcaster.sendTransform(ts)
-            except:
-                pass
+            self.tf_broadcaster.sendTransform(ts)
 
     ####################################################################
 

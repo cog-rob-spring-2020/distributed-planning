@@ -141,6 +141,7 @@ class DMARRTAgent(object):
             self.latest_movement_timestamp = curr_time
 
         # TODO: do we need a timeout here instead of rrt_iters???
+        new_plan = None
         if not self.at_goal():
             new_plan = self.create_new_plan()
             self.publish_rrt_tree(self.rrt.node_list)

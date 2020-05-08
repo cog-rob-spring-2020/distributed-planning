@@ -75,32 +75,32 @@ class RewardQueueAgent(DMARRTAgent):
 
         # Handle goal modifications
         if self.goal_token_holder:
-            removed_goal = (None, None) # placeholder to avoid breaking queue_remove
+            removed_goal = None
 
             # Claim a primary goal in the queue
             if self.goal == None and len(self.queue) > 0:
-                self.goal = self.queue[0]
+                self.goal = self.queue[0][0]
                 self.queue_remove(self.goal[0])
                 removed_goal = self.goal
 
                 # Start up RRT
-                self.set_goal(removed_goal[0])
+                self.set_goal(self.goal)
 
             # Claim a secondary goal in the queue
             elif self.second_goal == None and len(self.queue) > 0:
-                self.second_goal = self.queue[0]
+                self.second_goal = self.queue[0][0]
                 self.queue_remove(self.second_goal[0])
                 removed_goal = self.second_goal
                 
             # Send out the winner of the goal bids
-            if len(self.goal_bids.keys()) > 0 and removed_goal[0]:
+            if len(self.goal_bids.keys()) > 0 and removed_goal:
                 max_agent = self.goal_bids.keys()[0]
                 for agent in self.goal_bids:
                     if self.goal_bids[agent][0] > self.goal_bids[max_agent][0] and \
                             self.goal_bids[agent][1] != removed_goal:
                         max_agent = agent
 
-                self.publish_goal_winner(max_agent, removed_goal[0])
+                self.publish_goal_winner(max_agent, removed_goal)
                 self.goal_token_holder = False
 
         # Publish a goal bid

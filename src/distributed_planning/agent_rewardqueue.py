@@ -68,16 +68,6 @@ class RewardQueueAgent(DMARRTAgent):
         This can be done inside of the DMARRTAgent class!
         """
         super(RewardQueueAgent, self).spin_once()
-        
-        # TODO:
-        # if-else for other token (for getting goals off queue)
-        # if self.goal_token_holder and you have space for a new goal:
-        #   take first goal off queue
-        #   compute winner of next round of goal bidding (ignoring bidders for goal we just claimed)
-        #   broadcast winner (tells everyone to remove goal we claimed)
-        # else:
-        #   bid on our favorite goal in the queue
-                # Move the agent by one timestep.
 
         # Handle goal modifications
         if self.goal_token_holder:
@@ -86,7 +76,7 @@ class RewardQueueAgent(DMARRTAgent):
             # Claim a primary goal in the queue
             if self.goal == None and len(self.queue) > 0:
                 self.goal = self.queue[0][0]
-                self.queue_remove(self.goal[0])
+                self.queue_remove(self.goal)
                 removed_goal = self.goal
 
                 # Start up RRT
@@ -95,15 +85,14 @@ class RewardQueueAgent(DMARRTAgent):
             # Claim a secondary goal in the queue
             elif self.second_goal == None and len(self.queue) > 0:
                 self.second_goal = self.queue[0][0]
-                self.queue_remove(self.second_goal[0])
+                self.queue_remove(self.second_goal)
                 removed_goal = self.second_goal
                 
             # Send out the winner of the goal bids
             if len(self.goal_bids.keys()) > 0 and removed_goal:
-                max_agent = self.goal_bids.keys()[0]
+                max_agent = list(self.goal_bids.keys())[0] #start with random agent
                 for agent in self.goal_bids:
-                    if self.goal_bids[agent][0] > self.goal_bids[max_agent][0] and \
-                            self.goal_bids[agent][1] != removed_goal:
+                    if self.goal_bids[agent][0] > self.goal_bids[max_agent][0] and self.goal_bids[agent][1] != removed_goal:
                         max_agent = agent
 
                 stamp = rospy.Time.now()
@@ -113,9 +102,22 @@ class RewardQueueAgent(DMARRTAgent):
         # Publish a goal bid
         else:
             if len(self.queue) > 0:
+                #bid = reward - distance to reward
                 first_goal = self.queue[0][0]
-                bid = np.abs(np.sqrt((self.pos[0] - first_goal[0])**2 + (self.pos[1] - first_goal[1])**2))
-                self.publish_goal_bid(bid, first_goal)
+                dist = np.abs(np.sqrt((self.pos[0] - first_goal[0])**2 + (self.pos[1] - first_goal[1])**2))
+                bid = self.queue[0][1]-dist
+
+                #no need to get the token
+                if self.goal and self.second_goal:
+                    self.publish_goal_bid(-1000, self.goal)
+
+                #reduced bid for secondary goal since it's not urgent
+                elif self.goal:
+                    self.publish_goal_bid(bid/2, first_goal)
+
+                #bid normally
+                else:
+                    self.publish_goal_bid(bid, first_goal)
 
     ####################################################################
 
@@ -194,7 +196,7 @@ class RewardQueueAgent(DMARRTAgent):
         agent did not send the message in our implementation).
         msg - message of type Goal
         """
-        self.queue_remove((msg.x, msg.y))
+        self.queue_remove((msg.goal_point.x, msg.goal_point.y))
 
     ####################################################################
 

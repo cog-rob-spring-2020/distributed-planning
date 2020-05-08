@@ -5,13 +5,16 @@
   <param name="/map_topic" value="/map"/>
   <rosparam command="load" file="$(find distributed_planning)/params/agent_params.yaml"/>
 
+  <!-- Random Goal Updater -->
+  <node pkg="distributed_planning" type="goal_updater.py" name="goal_updater" output="screen"/>
+
   <!-- Agent Nodes -->
   <!-- NOTE: Always set one of these agents to have the token in this file. -->
-  <!-- <node pkg="distributed_planning" type="agent_rewardqueue.py" name="agent_1" output="screen">
+  <node pkg="distributed_planning" type="agent_rewardqueue.py" name="agent_1" output="screen">
     <param name="name_prefix" value="agent_1"/>
-  </node> -->
+  </node>
 
-  <!-- <node pkg="distributed_planning" type="agent_rewardqueue.py" name="agent_2" output="screen">
+  <node pkg="distributed_planning" type="agent_rewardqueue.py" name="agent_2" output="screen">
     <param name="name_prefix" value="agent_2"/>
   </node>
 
@@ -21,11 +24,12 @@
 
   <node pkg="distributed_planning" type="agent_rewardqueue.py" name="agent_4" output="screen">
     <param name="name_prefix" value="agent_4"/>
-  </node> -->
+  </node>
 
   <node pkg="distributed_planning" type="agent_rewardqueue.py" name="agent_5" output="screen">
-    <param name="name_prefix" value="agent_5"/>
-    <param name="has_token"   value="true"/>
+    <param name="name_prefix"    value="agent_5"/>
+    <param name="has_token"      value="true"/>
+    <param name="has_goal_token" value="true"/>
   </node>
 
   <!-- Map Server -->

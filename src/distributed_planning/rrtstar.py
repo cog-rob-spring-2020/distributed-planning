@@ -140,7 +140,7 @@ class RRTstar:
         self.start = Node(start[0], start[1])
         self.goal = Node(goal[0], goal[1])
 
-        self.map = None
+        self.map_data = None
         self.map_metadata = None
         self.map_bounds = None
         self.setup_map(env)
@@ -490,7 +490,7 @@ class RRTstar:
     def setup_map(self, env):
         """
         """
-        self.map = self.convert_map(env)
+        self.map_data = self.convert_map(env)
         self.map_metadata = env.info
         res = self.map_metadata.resolution
 
@@ -504,7 +504,7 @@ class RRTstar:
         """
         """
         map_pos = self.convert_point_to_map((x, y))
-        return self.map[map_pos[0]][map_pos[1]] > 0
+        return self.map_data[map_pos[0]][map_pos[1]] > 0
 
     def check_collision_line(self, node1, node2):
         """
@@ -523,12 +523,12 @@ class RRTstar:
         if (maxx - minx) > (maxy - miny):
             for x in range(minx, maxx+1):
                 y = (map_pos2[1] - map_pos1[1]) * (x - minx) / (maxx - minx) + map_pos1[1]
-                if self.map[x][y] > 0:
+                if self.map_data[x][y] > 0:
                     return True
         else:
             for y in range(miny, maxy+1):
                 x = (map_pos2[0] - map_pos1[0]) * (y - miny) / (maxy - miny) + map_pos1[0]
-                if self.map[x][y] > 0:
+                if self.map_data[x][y] > 0:
                     return True
 
         return False
@@ -554,12 +554,12 @@ class RRTstar:
         return (int(x / self.map_metadata.resolution),
                 int(y / self.map_metadata.resolution))
 
-    def convert_map(self, map):
+    def convert_map(self, map_data):
         """
         """
-        height = map.info.height
-        width = map.info.width
+        height = map_data.info.height
+        width = map_data.info.width
 
-        new_map = np.transpose(np.reshape(map.data, (height, width)))
+        new_map = np.transpose(np.reshape(map_data.data, (height, width)))
 
         return new_map

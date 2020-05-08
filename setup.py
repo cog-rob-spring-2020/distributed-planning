@@ -10,7 +10,7 @@ setup_args = generate_distutils_setup(
      description='The distributed planning package',
      packages=['distributed_planning',],
      package_dir={'': 'src',},
-     install_requires={'numpy >= 1.16.0', "empy >= 3.3.4",},
+     install_requires={'numpy >= 1.16.0', "empy >= 3.3.4", "PyYAML==5.3.1", },
 )
 
 setup(**setup_args)

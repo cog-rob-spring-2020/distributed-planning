@@ -19,8 +19,8 @@ agent_2:
     x: 64.0
     y: 107.0
   goal_pos:
-    x: 183.0
-    y: 149.0
+    x: -206.77
+    y: 1.78
   goal_dist: 1.0
   rrt_iters: 100
   step_size: 3.0

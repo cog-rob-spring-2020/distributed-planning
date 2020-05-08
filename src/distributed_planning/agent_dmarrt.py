@@ -68,7 +68,7 @@ class DMARRTAgent(object):
         self.movement_dt = self.agent_params["movement_dt"]
 
         # Send and track robot positions
-        self.tf_broadcaster = tf.TransformBroadcaster()
+        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
         # self.tf_listener = tf.TransformListener()
 
         # curr_plan is the currently executing plan; best_plan is a
@@ -115,7 +115,13 @@ class DMARRTAgent(object):
         self.rrt_tree_pub = rospy.Publisher(
             self.identifier + "/viz/rrt/tree", Marker, queue_size=10
         )
+        self.endpoint_marker_pub = rospy.Publisher(
+            self.identifier + "/viz/rrt/endpoints", Marker, queue_size=10
+        )
+
+
         self.tree_marker = self.setup_tree_marker()
+        self.endpoint_marker = self.setup_endpoint_marker()
 
         rospy.loginfo(self.identifier + " has initialized.")
 
@@ -197,6 +203,7 @@ class DMARRTAgent(object):
 
         # Visualize relevant data
         self.publish_rrt_tree(self.rrt.node_list)
+        self.publish_endpoints()
         self.publish_path(self.curr_plan, curr_time, self.curr_path_viz_pub)
         self.publish_path(self.best_plan, curr_time, self.best_path_viz_pub)
 
@@ -298,6 +305,19 @@ class DMARRTAgent(object):
 
             self.rrt_tree_pub.publish(self.tree_marker)
 
+    def publish_endpoints(self):
+        """
+        """
+        if not rospy.is_shutdown() and self.endpoint_marker_pub.get_num_connections() > 0:
+            self.endpoint_marker.points[0].x = self.start[0]
+            self.endpoint_marker.points[0].y = self.start[1]
+            self.endpoint_marker.points[1].x = self.goal[0]
+            self.endpoint_marker.points[1].y = self.goal[1]
+
+            self.endpoint_marker.header.stamp = rospy.Time.now()
+
+            self.endpoint_marker_pub.publish(self.endpoint_marker)
+
     def publish_new_tf(self, timestamp):
         """ Publish the ground-truth transform to the TF tree.
 
@@ -305,24 +325,31 @@ class DMARRTAgent(object):
                 timestamp: A rospy.Time instance representing the current
                     time in the simulator.
         """
-        # Publish current transform to tf tree.
-        if self.curr_plan:
-            curr_node = None
-            for i in range(self.curr_plan_id + 1, len(self.curr_plan.nodes)):
-                curr_node = self.curr_plan.nodes[i]
+        if not rospy.is_shutdown():
+            if self.curr_plan:
+                curr_node = None
+                for i in range(self.curr_plan_id + 1, len(self.curr_plan.nodes)):
+                    curr_node = self.curr_plan.nodes[i]
 
-                if curr_node.stamp >= timestamp:
-                    self.curr_plan_id = i
-                    break
+                    if curr_node.stamp >= timestamp:
+                        self.curr_plan_id = i
+                        break
 
-            if curr_node:
-                self.pos = (curr_node.x, curr_node.y)
+                if curr_node:
+                    self.pos = (curr_node.x, curr_node.y)
 
-        trans = [self.pos[0], self.pos[1], 0.0]
-        quat = [0, 0, 0, 1]  # TODO(marcus): add this dimensionality
-        self.tf_broadcaster.sendTransform(
-            trans, quat, timestamp, self.body_frame, self.own_map_frame_id
-        )
+            ts = TransformStamped()
+            ts.header.stamp = timestamp
+            ts.header.frame_id = self.own_map_frame_id
+            ts.child_frame_id = self.body_frame
+            ts.transform.translation.x = self.pos[0]
+            ts.transform.translation.y = self.pos[1]
+            ts.transform.rotation.w = 1.0
+
+            try:
+                self.tf_broadcaster.sendTransform(ts)
+            except:
+                pass
 
     ####################################################################
 
@@ -353,6 +380,23 @@ class DMARRTAgent(object):
         tree_marker.color.a = 1.0
 
         return tree_marker
+
+    def setup_endpoint_marker(self):
+        """
+        """
+        markers = Marker()
+        markers.header.frame_id = self.own_map_frame_id
+        markers.action = Marker.ADD
+        markers.type = Marker.SPHERE_LIST
+        markers.pose.orientation.w = 1.0
+        markers.scale.x = 10.0
+        markers.scale.y = 10.0
+        markers.scale.z = 10.0
+        markers.color.g = 1.0
+        markers.color.a = 1.0
+        markers.points = [Point(), Point()]
+
+        return markers
 
     def at_goal(self):
         """

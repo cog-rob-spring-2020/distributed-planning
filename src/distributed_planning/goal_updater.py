@@ -19,15 +19,15 @@ class GoalUpdater(object):
         self.setup_map(map_data)
 
         #Adding goals
-        rospy.Subscriber("add_goal", Goal, self.receive_add_goal)
-        self.add_goal_pub = rospy.Publisher("add_goal", Goal, queue_size=10)
+        rospy.Subscriber("goals/add_goal", Goal, self.receive_add_goal)
+        self.add_goal_pub = rospy.Publisher("goals/add_goal", Goal, queue_size=10)
 
         #Removing goals
-        rospy.Subscriber("remove_goal", Goal, self.receive_remove_goal)
-        self.remove_goal_pub = rospy.Publisher("remove_goal", Goal, queue_size=10)
+        rospy.Subscriber("goals/remove_goal", Goal, self.receive_remove_goal)
+        self.remove_goal_pub = rospy.Publisher("goals/remove_goal", Goal, queue_size=10)
 
         #goal and winner
-        rospy.Subscriber("winner_and_goal", WinnerIDGoal, self.receive_winner_and_goal)
+        rospy.Subscriber("goals/winner_goal", Goal, self.receive_winner_goal)
 
         #start publishing goals
         self.maintain_queue()
@@ -41,7 +41,7 @@ class GoalUpdater(object):
         if (msg.goal_point.x, msg.goal_point.y) in self.goals:
             self.goals.remove((msg.goal_point.x, msg.goal_point.y))
 
-    def receive_winner_and_goal(self, msg):
+    def receive_winner_goal(self, msg):
         if (msg.goal_point.x, msg.goal_point.y) in self.goals:
             self.goals.remove((msg.goal_point.x, msg.goal_point.y))
 

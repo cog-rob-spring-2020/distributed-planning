@@ -273,20 +273,25 @@ class DMARRTAgent(object):
             path_msg = PathRosMsg()
             path_msg.header.stamp = stamp
             path_msg.header.frame_id = self.own_map_frame_id
-            path_msg.poses = [PoseStamped() for i in range(len(plan.nodes))]
-            for i in range(len(plan.nodes)):
-                pose = PoseStamped()
-                node = plan.nodes[i]
-                pose.header.frame_id = self.own_map_frame_id
-                pose.header.stamp = node.stamp
-                pose.pose.position.x = node.x
-                pose.pose.position.y = node.y
-                pose.pose.position.z = 0.0  # TODO(marcus): extend to 3D
-                pose.pose.orientation.w = 1.0  # TODO(marcus): include orientation info
+            
+            if plan:
+                path_msg.poses = [PoseStamped() for i in range(len(plan.nodes))]
+                for i in range(len(plan.nodes)):
+                    pose = PoseStamped()
+                    node = plan.nodes[i]
+                    pose.header.frame_id = self.own_map_frame_id
+                    pose.header.stamp = node.stamp
+                    pose.pose.position.x = node.x
+                    pose.pose.position.y = node.y
+                    pose.pose.position.z = 0.0  # TODO(marcus): extend to 3D
+                    pose.pose.orientation.w = 1.0  # TODO(marcus): include orientation info
 
-                path_msg.poses[i] = pose
+                    path_msg.poses[i] = pose
 
-            pub.publish(path_msg)
+            try:
+                pub.publish(path_msg)
+            except rospy.ROSException:
+                pass
 
     def publish_rrt_tree(self, nodes):
         """
@@ -303,20 +308,30 @@ class DMARRTAgent(object):
                         Point(node.parent.x, node.parent.y, 0.0)
                     )
 
-            self.rrt_tree_pub.publish(self.tree_marker)
+            try:
+                self.rrt_tree_pub.publish(self.tree_marker)
+            except rospy.ROSException:
+                pass
 
     def publish_endpoints(self):
         """
         """
         if not rospy.is_shutdown() and self.endpoint_marker_pub.get_num_connections() > 0:
-            self.endpoint_marker.points[0].x = self.start[0]
-            self.endpoint_marker.points[0].y = self.start[1]
-            self.endpoint_marker.points[1].x = self.goal[0]
-            self.endpoint_marker.points[1].y = self.goal[1]
-
             self.endpoint_marker.header.stamp = rospy.Time.now()
 
-            self.endpoint_marker_pub.publish(self.endpoint_marker)
+            if self.start:
+                self.endpoint_marker.points[0].x = self.start[0]
+                self.endpoint_marker.points[0].y = self.start[1]
+            if self.goal:
+                self.endpoint_marker.points[1].x = self.goal[0]
+                self.endpoint_marker.points[1].y = self.goal[1]
+                self.endpoint_marker.color.a = 1.0
+
+            try:
+                self.endpoint_marker_pub.publish(self.endpoint_marker)
+            except rospy.ROSException:
+                pass
+
 
     def publish_new_tf(self, timestamp):
         """ Publish the ground-truth transform to the TF tree.
@@ -346,7 +361,10 @@ class DMARRTAgent(object):
             ts.transform.translation.y = self.pos[1]
             ts.transform.rotation.w = 1.0
 
-            self.tf_broadcaster.sendTransform(ts)
+            try:
+                self.tf_broadcaster.sendTransform(ts)
+            except rospy.ROSException:
+                pass
 
     ####################################################################
 
@@ -390,7 +408,7 @@ class DMARRTAgent(object):
         markers.scale.y = 10.0
         markers.scale.z = 10.0
         markers.color.g = 1.0
-        markers.color.a = 1.0
+        markers.color.a = 0.0  # Make visible after you confirm they exist.
         markers.points = [Point(), Point()]
 
         return markers

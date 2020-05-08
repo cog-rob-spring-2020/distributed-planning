@@ -4,6 +4,7 @@ import numpy as np
 import yaml
 
 import rospy
+import message_filters
 import tf
 import tf2_ros
 from std_msgs.msg import Header
@@ -81,17 +82,18 @@ class DMARRTAgent(object):
         self.plan_token_holder = rospy.get_param("~has_token", False)
 
         # be ready for replanning bids
-        rospy.Subscriber("plan_bids", PlanBid, self.plan_bid_cb)
-        self.plan_bid_pub = rospy.Publisher("plan_bids", PlanBid, queue_size=10)
+        rospy.Subscriber("plan/bids", PlanBid, self.plan_bid_cb)
+        self.plan_bid_pub = rospy.Publisher("plan/bids", PlanBid, queue_size=10)
 
-        # be ready for winner ID messages
-        rospy.Subscriber("winner_id", WinnerID, self.winner_id_cb)
-        self.winner_id_pub = rospy.Publisher("winner_id", WinnerID, queue_size=10)
+        # publishers for replanning
+        self.winner_id_pub = rospy.Publisher("plan/winner_id", WinnerID, queue_size=10)
+        self.waypoint_pub = rospy.Publisher("plan/waypoints", PathRosMsg, queue_size=10)
 
-        # be ready for updated waypoints from the winner
-        self.waypoints_pub = rospy.Publisher(
-            self.identifier + "/waypoints", PathRosMsg, queue_size=10
-        )
+        # Time-synchronized replan subscribers
+        self.planning_ts = message_filters.TimeSynchronizer(
+            [message_filters.Subscriber("plan/winner_id", WinnerID),
+             message_filters.Subscriber("plan/waypoints", PathRosMsg)], 10)
+        self.planning_ts.registerCallback(self.winner_waypoint_cb)
 
         # publish static tf for private map frame
         self.own_map_frame_id = "/" + self.identifier + "_map"
@@ -103,9 +105,15 @@ class DMARRTAgent(object):
         own_map_tf.transform.rotation.w = 1.0
         self.static_tf_broadcaster.sendTransform([own_map_tf])
 
-        # optionally publish RRT tree
+        # Visualization publishers
+        self.curr_path_viz_pub = rospy.Publisher(
+            self.identifier + "/viz/curr_path", PathRosMsg, queue_size=10
+        )
+        self.best_path_viz_pub = rospy.Publisher(
+            self.identifier + "/viz/best_path", PathRosMsg, queue_size=10
+        )
         self.rrt_tree_pub = rospy.Publisher(
-            self.identifier + "/rrt/tree", Marker, queue_size=10
+            self.identifier + "/viz/rrt/tree", Marker, queue_size=10
         )
         self.tree_marker = self.setup_tree_marker()
 
@@ -144,7 +152,6 @@ class DMARRTAgent(object):
         new_plan = None
         if not self.at_goal():
             new_plan = self.create_new_plan()
-            self.publish_rrt_tree(self.rrt.node_list)
 
             # Assign first "current path" found
             if new_plan:
@@ -175,21 +182,23 @@ class DMARRTAgent(object):
             self.plan_token_holder = (
                 False  # Set to false here in case we get the token back.
             )
-            self.publish_winner_id(winner_id)
-
-            # broadcast own waypoints
-            self.publish_waypoints(self.best_plan)
-
-            #need to change to format below
-            # self.publish_winner_id_and_waypoints(winner_id, self.best_plan)
+            
+            # These topics are time-synchronized for all agents
+            self.publish_winner_id(winner_id, curr_time)
+            self.publish_path(self.curr_plan, curr_time, self.waypoint_pub)
 
         if self.at_goal():
             # no more replanning necessary!
-            self.publish_plan_bid(-1000.0)
+            self.publish_plan_bid(-1000.0, curr_time)
         else:
             if self.curr_plan and self.best_plan:
                 # broadcast plan bid
-                self.publish_plan_bid(self.curr_plan.cost - self.best_plan.cost)
+                self.publish_plan_bid(self.curr_plan.cost - self.best_plan.cost, curr_time)
+
+        # Visualize relevant data
+        self.publish_rrt_tree(self.rrt.node_list)
+        self.publish_path(self.curr_plan, curr_time, self.curr_path_viz_pub)
+        self.publish_path(self.best_plan, curr_time, self.best_path_viz_pub)
 
     ####################################################################
 
@@ -203,6 +212,12 @@ class DMARRTAgent(object):
         planning iteration
         """
         self.plan_bids[msg.header.frame_id] = msg.bid
+
+    def winner_waypoint_cb(self, winner_id_msg, waypoint_msg):
+        """
+        """
+        self.winner_id_cb(winner_id_msg)
+        self.waypoint_cb(waypoint_msg)
 
     def winner_id_cb(self, msg):
         """
@@ -219,37 +234,37 @@ class DMARRTAgent(object):
 
     ####################################################################
 
-    def publish_plan_bid(self, bid):
+    def publish_plan_bid(self, bid, stamp):
         """
         Broadcast our bid for the token
         """
         if not rospy.is_shutdown() and self.plan_bid_pub.get_num_connections() > 0:
             bid_msg = PlanBid()
-            bid_msg.header.stamp = rospy.Time.now()
+            bid_msg.header.stamp = stamp
             bid_msg.header.frame_id = self.identifier
             bid_msg.bid = bid
 
             self.plan_bid_pub.publish(bid_msg)
             
-    def publish_winner_id(self, winner_id):
+    def publish_winner_id(self, winner_id, stamp):
         """
         Broadcast the token winner
         """
         if not rospy.is_shutdown() and self.winner_id_pub.get_num_connections() > 0:
             winner_id_msg = WinnerID()
-            winner_id_msg.header.stamp = rospy.Time.now()
+            winner_id_msg.header.stamp = stamp
             winner_id_msg.header.frame_id = self.identifier
             winner_id_msg.winner_id = winner_id
 
             self.winner_id_pub.publish(winner_id_msg)
 
-    def publish_waypoints(self, plan):
+    def publish_path(self, plan, stamp, pub):
         """
         Broadcast our waypoints
         """
-        if not rospy.is_shutdown() and self.waypoints_pub.get_num_connections() > 0:
+        if not rospy.is_shutdown() and pub.get_num_connections() > 0:
             path_msg = PathRosMsg()
-            path_msg.header.stamp = rospy.Time.now()
+            path_msg.header.stamp = stamp
             path_msg.header.frame_id = self.own_map_frame_id
             path_msg.poses = [PoseStamped() for i in range(len(plan.nodes))]
             for i in range(len(plan.nodes)):
@@ -264,7 +279,7 @@ class DMARRTAgent(object):
 
                 path_msg.poses[i] = pose
 
-            self.waypoints_pub.publish(path_msg)
+            pub.publish(path_msg)
 
     def publish_rrt_tree(self, nodes):
         """

@@ -69,14 +69,6 @@ Visualization Manager:
           Value: true
         agent_3_map:
           Value: false
-        agent_4_body:
-          Value: true
-        agent_4_map:
-          Value: false
-        agent_5_body:
-          Value: true
-        agent_5_map:
-          Value: false
         map:
           Value: true
       Marker Scale: 25
@@ -85,21 +77,15 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
+        agent_1_map:
+          agent_1_body:
+            {}
         map:
-          agent_1_map:
-            agent_1_body:
-              {}
           agent_2_map:
             agent_2_body:
               {}
           agent_3_map:
             agent_3_body:
-              {}
-          agent_4_map:
-            agent_4_body:
-              {}
-          agent_5_map:
-            agent_5_body:
               {}
       Update Interval: 0
       Value: true
@@ -117,7 +103,7 @@ Visualization Manager:
       Displays:
         - Class: rviz/Marker
           Enabled: true
-          Marker Topic: /agent_1/rrt/tree
+          Marker Topic: /agent_1/viz/rrt/tree
           Name: Marker
           Namespaces:
             {}
@@ -143,7 +129,30 @@ Visualization Manager:
           Radius: 0.029999999329447746
           Shaft Diameter: 0.10000000149011612
           Shaft Length: 0.10000000149011612
-          Topic: /agent_1/waypoints
+          Topic: /agent_1/viz/curr_path
+          Unreliable: false
+          Value: true
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz/Path
+          Color: 0; 17; 255
+          Enabled: true
+          Head Diameter: 0.30000001192092896
+          Head Length: 0.20000000298023224
+          Length: 0.30000001192092896
+          Line Style: Lines
+          Line Width: 0.029999999329447746
+          Name: Path
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.10000000149011612
+          Shaft Length: 0.10000000149011612
+          Topic: /agent_1/viz/best_path
           Unreliable: false
           Value: true
       Enabled: false
@@ -152,7 +161,7 @@ Visualization Manager:
       Displays:
         - Class: rviz/Marker
           Enabled: true
-          Marker Topic: /agent_2/rrt/tree
+          Marker Topic: /agent_2/viz/rrt/tree
           Name: Marker
           Namespaces:
             {}
@@ -178,7 +187,30 @@ Visualization Manager:
           Radius: 0.029999999329447746
           Shaft Diameter: 0.10000000149011612
           Shaft Length: 0.10000000149011612
-          Topic: /agent_2/waypoints
+          Topic: /agent_2/viz/curr_path
+          Unreliable: false
+          Value: true
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz/Path
+          Color: 0; 17; 255
+          Enabled: true
+          Head Diameter: 0.30000001192092896
+          Head Length: 0.20000000298023224
+          Length: 0.30000001192092896
+          Line Style: Lines
+          Line Width: 0.029999999329447746
+          Name: Path
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.10000000149011612
+          Shaft Length: 0.10000000149011612
+          Topic: /agent_2/viz/best_path
           Unreliable: false
           Value: true
       Enabled: false
@@ -187,7 +219,7 @@ Visualization Manager:
       Displays:
         - Class: rviz/Marker
           Enabled: true
-          Marker Topic: /agent_3/rrt/tree
+          Marker Topic: /agent_3/viz/rrt/tree
           Name: Marker
           Namespaces:
             {}
@@ -213,7 +245,30 @@ Visualization Manager:
           Radius: 0.029999999329447746
           Shaft Diameter: 0.10000000149011612
           Shaft Length: 0.10000000149011612
-          Topic: /agent_3/waypoints
+          Topic: /agent_3/viz/curr_path
+          Unreliable: false
+          Value: true
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz/Path
+          Color: 0; 17; 255
+          Enabled: true
+          Head Diameter: 0.30000001192092896
+          Head Length: 0.20000000298023224
+          Length: 0.30000001192092896
+          Line Style: Lines
+          Line Width: 0.029999999329447746
+          Name: Path
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.10000000149011612
+          Shaft Length: 0.10000000149011612
+          Topic: /agent_3/viz/best_path
           Unreliable: false
           Value: true
       Enabled: false
@@ -222,7 +277,7 @@ Visualization Manager:
       Displays:
         - Class: rviz/Marker
           Enabled: true
-          Marker Topic: /agent_4/rrt/tree
+          Marker Topic: /agent_4/viz/rrt/tree
           Name: Marker
           Namespaces:
             {}
@@ -248,7 +303,30 @@ Visualization Manager:
           Radius: 0.029999999329447746
           Shaft Diameter: 0.10000000149011612
           Shaft Length: 0.10000000149011612
-          Topic: /agent_4/waypoints
+          Topic: /agent_4/viz/curr_path
+          Unreliable: false
+          Value: true
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz/Path
+          Color: 0; 17; 255
+          Enabled: true
+          Head Diameter: 0.30000001192092896
+          Head Length: 0.20000000298023224
+          Length: 0.30000001192092896
+          Line Style: Lines
+          Line Width: 0.029999999329447746
+          Name: Path
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.10000000149011612
+          Shaft Length: 0.10000000149011612
+          Topic: /agent_4/viz/best_path
           Unreliable: false
           Value: true
       Enabled: false
@@ -257,7 +335,7 @@ Visualization Manager:
       Displays:
         - Class: rviz/Marker
           Enabled: true
-          Marker Topic: /agent_5/rrt/tree
+          Marker Topic: /agent_5/viz/rrt/tree
           Name: Marker
           Namespaces:
             {}
@@ -283,7 +361,30 @@ Visualization Manager:
           Radius: 0.029999999329447746
           Shaft Diameter: 0.10000000149011612
           Shaft Length: 0.10000000149011612
-          Topic: /agent_5/waypoints
+          Topic: /agent_5/viz/curr_path
+          Unreliable: false
+          Value: true
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz/Path
+          Color: 0; 17; 255
+          Enabled: true
+          Head Diameter: 0.30000001192092896
+          Head Length: 0.20000000298023224
+          Length: 0.30000001192092896
+          Line Style: Lines
+          Line Width: 0.029999999329447746
+          Name: Path
+          Offset:
+            X: 0
+            Y: 0
+            Z: 0
+          Pose Color: 255; 85; 255
+          Pose Style: None
+          Radius: 0.029999999329447746
+          Shaft Diameter: 0.10000000149011612
+          Shaft Length: 0.10000000149011612
+          Topic: /agent_5/viz/best_path
           Unreliable: false
           Value: true
       Enabled: false
@@ -316,7 +417,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 414.1612854003906
+      Distance: 416.811279296875
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1

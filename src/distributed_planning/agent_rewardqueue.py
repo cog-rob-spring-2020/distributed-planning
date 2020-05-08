@@ -3,11 +3,12 @@
 import numpy as np
 
 import rospy
+import message_filters
 from std_msgs.msg import Header
 from geometry_msgs.msg import Point
 
 from agent_dmarrt import DMARRTAgent
-from distributed_planning.msg import Goal, GoalBid, WinnerIDGoal
+from distributed_planning.msg import Goal, GoalBid, WinnerID
 
 
 class RewardQueueAgent(DMARRTAgent):
@@ -28,18 +29,23 @@ class RewardQueueAgent(DMARRTAgent):
         self.second_goal = None
 
         # Adding goals
-        rospy.Subscriber("add_goal", Goal, self.added_goal_cb)
+        rospy.Subscriber("goals/add_goal", Goal, self.added_goal_cb)
 
         # Removing goals
-        rospy.Subscriber("remove_goal", Goal, self.removed_goal_cb)
+        rospy.Subscriber("goals/remove_goal", Goal, self.removed_goal_cb)
 
         # goal and winner
-        rospy.Subscriber("winner_and_goal", WinnerIDGoal, self.winner_and_goal_cb)
-        self.winner_and_goal_pub = rospy.Publisher("winner_and_goal", WinnerIDGoal, queue_size=10)
+        self.goal_ts = message_filters.TimeSynchronizer(
+            [message_filters.Subscriber("goals/winner_id", WinnerID),
+             message_filters.Subscriber("goals/winner_goal", Goal)], 10)
+        self.goal_ts.registerCallback(self.winner_and_goal_cb)
+
+        self.goal_winner_id_pub = rospy.Publisher("goals/winner_id", WinnerID, queue_size=10)
+        self.goal_winner_point_pub = rospy.Publisher("goals/winner_goal", Goal, queue_size=10)
 
         # goal bids
-        rospy.Subscriber("goal_bids", GoalBid, self.goal_bid_cb)
-        self.goal_bid_pub = rospy.Publisher("goal_bids", GoalBid, queue_size=10)
+        rospy.Subscriber("goals/goal_bids", GoalBid, self.goal_bid_cb)
+        self.goal_bid_pub = rospy.Publisher("goals/goal_bids", GoalBid, queue_size=10)
 
         super(RewardQueueAgent, self).__init__(*args, **kwargs)
 
@@ -100,7 +106,8 @@ class RewardQueueAgent(DMARRTAgent):
                             self.goal_bids[agent][1] != removed_goal:
                         max_agent = agent
 
-                self.publish_goal_winner(max_agent, removed_goal)
+                stamp = rospy.Time.now()
+                self.publish_goal_winner(max_agent, removed_goal, stamp)
                 self.goal_token_holder = False
 
         # Publish a goal bid
@@ -143,7 +150,7 @@ class RewardQueueAgent(DMARRTAgent):
 
     ####################################################################
 
-    def winner_and_goal_cb(self, msg):
+    def winner_and_goal_cb(self, winner_id_msg, goal_point_msg):
         """
         If winner, update internal state to hold the token.
 
@@ -151,9 +158,9 @@ class RewardQueueAgent(DMARRTAgent):
 
         msg - message of type WinnerIDGoal
         """
-        if msg.winner_id == self.identifier:
+        if winner_id_msg.winner_id == self.identifier:
             self.goal_token_holder = True
-        goal = (msg.goal_point.x, msg.goal_point.y)
+        goal = (goal_point_msg.goal_point.x, goal_point_msg.goal_point.y)
         self.queue_remove(goal)
 
     def goal_bid_cb(self, msg):
@@ -191,31 +198,35 @@ class RewardQueueAgent(DMARRTAgent):
 
     ####################################################################
 
-    def publish_goal_winner(self, winner_id, goal_point):
+    def publish_goal_winner(self, winner_id, goal_point, stamp):
         """
         Broadcasts the following message to the WinnerIDGoal topic
         goal_point - (x, y)
         other agents remove the specified goal
         """
-        if not rospy.is_shutdown() and self.winner_and_goal_pub.get_num_connections() > 0:
-            msg = WinnerIDGoal()
-            msg.header.stamp = rospy.Time.now()
+        if not rospy.is_shutdown() and \
+                self.goal_winner_point_pub.get_num_connections() > 0 and \
+                self.goal_winner_id_pub.get_num_connections() > 0:
+            msg = Goal()
+            msg.header.stamp = stamp
+            msg.header.frame_id = self.identifier
+            msg.reward = 0.0  # Not used in subscriber callbacks.
+            msg.goal_point = Point(goal_point[0], goal_point[1], 0.0)
+
+            self.goal_winner_point_pub.publish(msg)
+
+            msg = WinnerID()
+            msg.header.stamp = stamp
             msg.header.frame_id = self.identifier
             msg.winner_id = winner_id
-            
-            goal = Point()
-            goal.x = goal_point[0]
-            goal.y = goal_point[1]
 
-            msg.goal_point = goal
-
-            self.winner_and_goal_pub.publish(msg)
+            self.goal_winner_id_pub.publish(msg)
 
     def publish_goal_bid(self, bid, goal_point):
         """
         Broadcasts the following message to the goal_bids topic:
         """
-        if not rospy.is_shutdown() and self.winner_and_goal_pub.get_num_connections() > 0:
+        if not rospy.is_shutdown() and self.goal_bid_pub.get_num_connections() > 0:
             msg = GoalBid()
             msg.header.stamp = rospy.Time.now()
             msg.header.frame_id = self.identifier

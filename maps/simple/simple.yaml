@@ -1,0 +1,6 @@
+image: simple.png
+resolution: 0.7
+origin: [-280.0, -260.0, 0.0]
+occupied_thresh: 0.5
+free_thresh: 0.5
+negate: 0

@@ -1,5 +1,5 @@
 image: city.png
-resolution: 0.0967
+resolution: 0.1
 origin: [-230, -160, 0.0]
 occupied_thresh: 0.5
 free_thresh: 0.5

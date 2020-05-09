@@ -76,8 +76,8 @@ class GoalUpdater(object):
         map_metadata = map_data.info
         res = map_metadata.resolution
 
-        maxx = (map_metadata.origin.position.x + float(map_metadata.width) / 2) * res
-        maxy = (map_metadata.origin.position.y + float(map_metadata.height) / 2) * res
+        maxx = (map_metadata.origin.position.x) + (map_metadata.width * res)
+        maxy = (map_metadata.origin.position.y) + (map_metadata.height * res)
         minx = maxx - (map_metadata.width * res)
         miny = maxy - (map_metadata.height * res)
         self.map_bounds = ((minx, maxx), (miny, maxy))

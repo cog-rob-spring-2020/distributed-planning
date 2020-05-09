@@ -494,8 +494,8 @@ class RRTstar:
         self.map_metadata = env.info
         res = self.map_metadata.resolution
 
-        maxx = (self.map_metadata.origin.position.x + float(self.map_metadata.width) / 2) * res
-        maxy = (self.map_metadata.origin.position.y + float(self.map_metadata.height) / 2) * res
+        maxx = (self.map_metadata.origin.position.x) + (self.map_metadata.width * res)
+        maxy = (self.map_metadata.origin.position.y) + (self.map_metadata.height * res)
         minx = maxx - (self.map_metadata.width * res)
         miny = maxy - (self.map_metadata.height * res)
         self.map_bounds = ((minx, maxx), (miny, maxy))
@@ -548,8 +548,8 @@ class RRTstar:
             self.map_metadata.origin.orientation.w]
         )
 
-        # x = x * np.cos(yaw) + y * np.sin(yaw)
-        # y = -x * np.sin(yaw) + y * np.cos(yaw)
+        x = x * np.cos(yaw) + y * np.sin(yaw)
+        y = -x * np.sin(yaw) + y * np.cos(yaw)
 
         return (int(x / self.map_metadata.resolution),
                 int(y / self.map_metadata.resolution))

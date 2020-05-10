@@ -1,0 +1,37 @@
+<launch>
+  <arg name="map" default="empty"/>
+
+  <param name="/run_sim"   value="true"/>
+  <param name="/map_topic" value="/map"/>
+  <rosparam command="load" file="$(find distributed_planning)/params/agent_params.yaml"/>
+
+  <!-- Random Goal Updater -->
+  <node pkg="distributed_planning" type="goal_updater_continuation.py" name="goal_updater" output="screen"/>
+
+  <!-- Agent Nodes -->
+  <!-- NOTE: Always set one of these agents to have the token in this file. -->
+  <node pkg="distributed_planning" type="agent_continuation.py" name="agent_1" output="screen">
+    <param name="name_prefix" value="agent_1"/>
+    <param name="has_token"   value="true"/>
+  </node>
+
+  <node pkg="distributed_planning" type="agent_continuation.py" name="agent_2" output="screen">
+    <param name="name_prefix" value="agent_2"/>
+  </node>
+
+  <node pkg="distributed_planning" type="agent_continuation.py" name="agent_3" output="screen">
+    <param name="name_prefix" value="agent_3"/>
+  </node>
+
+  <!-- <node pkg="distributed_planning" type="agent_continuation.py" name="agent_4" output="screen">
+    <param name="name_prefix" value="agent_4"/>
+  </node>
+
+  <node pkg="distributed_planning" type="agent_continuation.py" name="agent_5" output="screen">
+    <param name="name_prefix" value="agent_5"/>
+  </node> -->
+
+  <!-- Map Server -->
+  <node name="map_server" pkg="map_server" type="map_server"
+        args="$(find distributed_planning)/maps/$(arg map)/$(arg map).yaml"/>
+</launch>

@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import math
 import numpy as np
 import random
 import yaml
@@ -161,17 +162,6 @@ class AltruisticAgent(DMARRTAgent):
         self.step = self.agent_params["step_size"]
         self.ccd = self.agent_params["near_radius"]
 
-        # Setup our RRT implementation
-        self.rrt = RRTstar(
-            start=self.start,
-            goal=self.goal,
-            env=self.map_data,
-            goal_dist=self.goal_dist,
-            step_size=self.step,
-            near_radius=self.ccd,
-            max_iter=self.rrt_iters,
-        )
-
         # Initial state
         self.pos = self.start
         self.curr_plan_id = 0  # ID of the node in the current plan we are at
@@ -240,7 +230,7 @@ class AltruisticAgent(DMARRTAgent):
         rospy.loginfo(self.identifier + " has initialized.")
         # altruistic DMA-RRT goal management
         # for now, hardcode G, the number of goals to plan against
-        self.G = 1
+        self.G = 5
         self.queue = []
         # plans against different goals
         subagent_to_initial_goal = Subagent(
@@ -250,11 +240,13 @@ class AltruisticAgent(DMARRTAgent):
             self.goal_dist,
             self.step,
             self.ccd,
-            self.rrt_iters,
+            int(math.ceil(self.rrt_iters / self.G)),
             self.movement_dt,
         )
         subagent_to_initial_goal.curr_agent_id = self.identifier
         self.subagents = [subagent_to_initial_goal]
+        # just for visualization
+        self.rrt = subagent_to_initial_goal.rrt
 
         # be ready for queue changes
         rospy.Subscriber("queue", AltruisticQueue, self.queue_cb)
@@ -285,8 +277,10 @@ class AltruisticAgent(DMARRTAgent):
             msg distributed_planning.msg.AltruisticQueue
         """
         self.queue = msg.goals
-        self.goal = filter(lambda g: g.agent_id == self.identifier, msg.goals)[0]
-        # TODO: update curr_agent_id in subagents too
+        my_goal = [g for g in self.queue if g.agent_id == self.identifier]
+
+        if len(my_goal) > 0:
+            self.goal = my_goal[0]
 
     def costs_cb(self, msg):
         """
@@ -318,9 +312,9 @@ class AltruisticAgent(DMARRTAgent):
         Select other goals to plan against (creates the iterator of first for-loop in the individual component of the altruistic algorithm)
         """
         eucl = lambda g: np.linalg.norm(
-            np.array((g.goal.x, g.goal.y)) - np.array((self.pos.x, self.pos.y))
+            np.array((g.location.x, g.location.y)) - np.array(self.pos)
         )
-        return filter(lambda g: g.goal != self.goal, sorted(self.queue, key=eucl))[
+        return filter(lambda g: g.location != self.goal, sorted(self.queue, key=eucl))[
             : self.G
         ]
 
@@ -411,11 +405,14 @@ class AltruisticAgent(DMARRTAgent):
                 break
 
         for g in self.queue:
-            if g.location == location:
+            print(g.location, location)
+            if (g.location.x, g.location.y) == location:
                 g.agent_id = self.identifier
                 break
 
         self.goal = location
+        self.curr_plan_id = 0
+        # TODO: clear curr_plan, best_plan instead?
 
     def release_goal(self):
         for a in self.subagents:
@@ -434,6 +431,13 @@ class AltruisticAgent(DMARRTAgent):
                 g.agent_id = agent_id
                 break
 
+    def goal_by_location(self, location):
+        print(location, [g for g in self.queue])
+        maybe_goal = [g for g in self.queue if (g.location.x, g.location.y) == location]
+        if len(maybe_goal) > 0:
+            return maybe_goal[0]
+        return None
+
     def spin_once(self):
         """
         Individual component of altruistic goal selection.
@@ -448,9 +452,10 @@ class AltruisticAgent(DMARRTAgent):
         curr_time = self.make_timestep()
 
         active_subagent = self.active_subagent()
-
-        if not self.at_goal():
+        if active_subagent:
             active_subagent.spin_once(curr_time)
+            self.rrt = active_subagent.rrt
+            # self.rrt.update_pos(self.pos, 0, wipe_tree=True)
 
             # Assign first "current path" found
             if not self.curr_plan:
@@ -462,14 +467,16 @@ class AltruisticAgent(DMARRTAgent):
             subagent = Subagent(
                 self.map_data,
                 self.pos,
-                goal.location,
+                (goal.location.x, goal.location.y),
                 self.goal_dist,
                 self.step,
                 self.ccd,
-                self.rrt_iters,
+                # split RRT iterations between subagents
+                int(math.ceil(self.rrt_iters / self.G)),
                 self.movement_dt,
             )
             subagent.curr_agent_id = goal.agent_id
+            subagent.curr_plan_id = self.curr_plan_id
             subagent.spin_once(curr_time)
             self.subagents.append(subagent)
 
@@ -477,46 +484,61 @@ class AltruisticAgent(DMARRTAgent):
         subagents = sorted(self.subagents, key=lambda a: a.plan.cost)
 
         if self.plan_token_holder:
+            # print('start', self.identifier, self.goal)
+            queue_msg = None
+            if self.at_goal():
+                # prune the subagent associated with the goal
+                subagents = [
+                    a for a in self.subagents if a.curr_agent_id != self.identifier
+                ]
+
+                # prune the goal from the queue
+                self.queue = [g for g in self.queue if g.location != self.goal]
+                queue_msg = AltruisticQueue(goals=self.queue)
+
+            # print(self.identifier, 'looking at', self.queue)
             for a in subagents:
-                # actually, check agent against the queue
-                if a.curr_agent_id == self.identifier:
+                goal = self.goal_by_location(a.goal)
+                if not goal:
+                    break
+
+                if goal.agent_id == self.identifier:
                     # our current goal has the lowest cost. no goal modification necessary
 
                     # replan to new best path for same goal
                     self.curr_plan = self.best_plan
+                    self.rrt = a.rrt
                     break
-                elif a.curr_agent_id == "":
+                elif goal.agent_id == "":
+                    # print(self.identifier, "found a new goal")
                     # the goal is unclaimed and free to be taken
                     self.take_goal(a.goal)
-                    self.curr_plan = a.plan
+                    self.curr_plan = self.best_plan = a.plan
+                    self.rrt = a.rrt
 
                     # update the queue
-                    msg = Queue(goals=self.queue)
-                    self.queue_pub(msg)
+                    queue_msg = AltruisticQueue(goals=self.queue)
                     break
                 else:
+                    # print(self.identifier, "found someone else's goal")
                     # someone else has this goal
                     found_peer_goal = self.reroute_check(a.goal, a.plan.cost)
                     if not found_peer_goal:
                         break
 
-                    self.give_goal(found_peer_goal.location, a.curr_agent_id)
+                    self.give_goal(found_peer_goal.location, goal.agent_id)
 
                     self.take_goal(a.goal)
-                    self.curr_plan = a.plan
+                    self.curr_plan = self.best_plan = a.plan
+                    self.rrt = a.rrt
 
                     # update the queue
-                    msg = Queue(goals=self.queue)
-                    self.queue_pub(msg)
+                    queue_msg = AltruisticQueue(goals=self.queue)
                     break
 
-            # broadcast costs to all goals planned against
-            self.publish_costs()
-
-            # prune all unused subagents
-            self.subagents = [
-                a for a in self.subagents if a.curr_agent_id == self.identifier
-            ]
+            # print('end', self.identifier, self.goal)
+            if queue_msg is not None:
+                self.queue_pub.publish(queue_msg)
 
             # Broadcast the new winner of the bidding round
             winner_id = self.identifier
@@ -536,7 +558,11 @@ class AltruisticAgent(DMARRTAgent):
             self.publish_path(self.curr_plan, curr_time, self.waypoint_pub)
 
         else:
+            if active_subagent:
+                self.curr_plan = active_subagent.plan
+
             unclaimed_goals = filter(lambda g: g.agent_id == "", self.queue)
+            # TODO: check how goal is being set! check .goal vs .location everywhere!
             if self.at_goal():
                 bid = 10000.0 if len(unclaimed_goals) > 0 else -1000
                 self.publish_plan_bid(bid, curr_time)
@@ -552,6 +578,14 @@ class AltruisticAgent(DMARRTAgent):
                 bid = max(bid, self.curr_plan.cost - self.best_plan.cost)
                 # broadcast plan bid
                 self.publish_plan_bid(bid, curr_time)
+
+        # broadcast costs to all goals planned against
+        self.publish_costs()
+
+        # prune all unused subagents
+        self.subagents = [
+            a for a in self.subagents if a.curr_agent_id == self.identifier
+        ]
 
         self.visualize(curr_time)
 

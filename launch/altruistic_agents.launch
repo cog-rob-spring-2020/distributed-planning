@@ -6,7 +6,7 @@
   <rosparam command="load" file="$(find distributed_planning)/params/agent_params.yaml"/>
 
   <!-- Random Goal Updater -->
-  <node pkg="distributed_planning" type="goal_updater.py" name="goal_updater" output="screen"/>
+  <node pkg="distributed_planning" type="goal_updater_altruistic.py" name="goal_updater" output="screen"/>
 
   <!-- Agent Nodes -->
   <!-- NOTE: Always set one of these agents to have the token in this file. -->

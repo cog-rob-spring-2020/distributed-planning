@@ -198,6 +198,9 @@ class DMARRTAgent(object):
                 # broadcast plan bid
                 self.publish_plan_bid(self.curr_plan.cost - self.best_plan.cost, curr_time)
 
+        self.visualize(curr_time)
+
+    def visualize(self, curr_time):
         # Visualize relevant data
         self.publish_rrt_tree(self.rrt.node_list)
         self.publish_endpoints()

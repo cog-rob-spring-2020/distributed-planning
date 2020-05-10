@@ -170,8 +170,6 @@ class ContinuationAgent(DMARRTAgent):
             self.latest_movement_timestamp = curr_time
 
         # create a new plan to the goal
-        # new_plan = None
-        # if not self.at_goal():
         new_plan = self.create_new_plan()
 
         # Assign first "current path" found
@@ -181,11 +179,7 @@ class ContinuationAgent(DMARRTAgent):
                 self.curr_plan = new_plan
 
         if self.plan_token_holder:
-            print("has token ->", self.identifier)
-            # TODO: not sure about this conditional right after we reach a goal
-            # TODO: maybe when they get stuck, they get goal and start mixed up?
             if new_plan:
-                # print(self.identifier, self.best_plan)
                 # Replan to new best path
                 self.curr_plan = self.best_plan
 
@@ -197,20 +191,11 @@ class ContinuationAgent(DMARRTAgent):
                 winner_ids = [
                     id for id, bid in self.plan_bids.items() if bid == winner_bid
                 ]
-                # print(winner_ids)
-                # opt to hand off the token if possible
-                # if len(winner_ids) > 1 and self.identifier in winner_ids:
-                #     winner_ids = filter(lambda i: i != self.identifier, winner_ids)
 
                 winner_id = random.choice(winner_ids)  # break bid ties with randomness
-                print("relinquishing to", winner_id)
-                # print(self.plan_bids)
-
-            # TODO: test euclidean, clean up!, cooperative dma-rrt, altruistic, get some numbers
 
             if self.at_goal():
                 if len(self.queue) > 0:
-                    print(self.identifier, "taking a goal!")
                     # we get to pick a new goal and update the queue
                     goal = self.take_goal()
                     self.reassign_goal(goal)
@@ -222,7 +207,6 @@ class ContinuationAgent(DMARRTAgent):
         else:
             if self.at_goal():
                 bid = 10000.0 if len(self.queue) > 0 else -1000
-                # print(self.identifier, bid)
                 self.publish_plan_bid(bid, curr_time)
             else:
                 # compute a bid based on a comparison of the current and best plans
@@ -230,7 +214,6 @@ class ContinuationAgent(DMARRTAgent):
                     # broadcast plan bid
                     bid = self.curr_plan.cost - self.best_plan.cost
                     self.publish_plan_bid(bid, curr_time)
-                    # print(self.identifier, bid)
 
         self.visualize(curr_time)
 
@@ -254,9 +237,6 @@ class ContinuationAgent(DMARRTAgent):
             max_iter=self.rrt_iters,
         )
 
-        # self.curr_plan.nodes = self.curr_plan.nodes[-1:]
-        # self.curr_plan.start_node = self.rrt.start
-        # self.curr_plan.goal_node = self.rrt.goal
         self.curr_plan = None
         self.best_plan = None
         self.curr_plan_id = 0

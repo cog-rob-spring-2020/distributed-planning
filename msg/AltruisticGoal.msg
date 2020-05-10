@@ -1,4 +1,4 @@
 Header header
 geometry_msgs/Point location
-Float64 reward
-String agent_id
+float64 reward
+string agent_id

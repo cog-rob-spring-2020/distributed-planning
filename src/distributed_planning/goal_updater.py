@@ -5,7 +5,7 @@ from time import sleep
 from std_msgs.msg import Header
 from geometry_msgs.msg import Point
 from nav_msgs.msg import OccupancyGrid
-from distributed_planning.msg import Goal, WinnerIDGoal
+from distributed_planning.msg import Goal
 
 class GoalUpdater(object):
     def __init__(self):

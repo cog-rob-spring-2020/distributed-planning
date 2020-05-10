@@ -24,7 +24,7 @@ from rrtstar import RRTstar, Path, Node
 
 
 class DMARRTAgent(object):
-    """`
+    """
     An Agent that uses DMA-RRT for distributed path planning
     """
 
@@ -35,33 +35,31 @@ class DMARRTAgent(object):
 
         # Get map data from server
         self.map_topic = rospy.get_param("/map_topic")
-        map_data = rospy.wait_for_message(self.map_topic, OccupancyGrid)
+        self.map_data = rospy.wait_for_message(self.map_topic, OccupancyGrid)
 
         self.agent_params = rospy.get_param("/" + self.identifier)
         self.spin_rate = self.agent_params["spin_rate"]
 
         # Initialize the RRT planner.
-        start_pos = (self.agent_params["start_pos"]["x"], self.agent_params["start_pos"]["y"])
-        goal_pos = (self.agent_params["goal_pos"]["x"], self.agent_params["goal_pos"]["y"])
-        goal_dist = self.agent_params["goal_dist"]
-        rrt_iters = self.agent_params["rrt_iters"]
-        step = self.agent_params["step_size"]
-        ccd = self.agent_params["near_radius"]
+        self.start = (self.agent_params["start_pos"]["x"], self.agent_params["start_pos"]["y"])
+        self.goal = (self.agent_params["goal_pos"]["x"], self.agent_params["goal_pos"]["y"])
+        self.goal_dist = self.agent_params["goal_dist"]
+        self.rrt_iters = self.agent_params["rrt_iters"]
+        self.step = self.agent_params["step_size"]
+        self.ccd = self.agent_params["near_radius"]
 
         # Setup our RRT implementation
         self.rrt = RRTstar(
-            start_pos,
-            goal_pos,
-            map_data,
-            goal_dist,
-            step_size=step,
-            near_radius=ccd,
-            max_iter=rrt_iters,
+            start=self.start,
+            goal=self.goal,
+            env=self.map_data,
+            goal_dist=self.goal_dist,
+            step_size=self.step,
+            near_radius=self.ccd,
+            max_iter=self.rrt_iters,
         )
 
         # Initial state
-        self.start = start_pos
-        self.goal = goal_pos
         self.pos = self.start
         self.curr_plan_id = 0  # ID of the node in the current plan we are at
         self.latest_movement_timestamp = rospy.Time.now()
@@ -126,7 +124,7 @@ class DMARRTAgent(object):
         rospy.loginfo(self.identifier + " has initialized.")
 
         # Setup the spin
-        rospy.Timer(rospy.Duration(1.0 / self.spin_rate), self.spin)
+        self.spin_timer = rospy.Timer(rospy.Duration(1.0 / self.spin_rate), self.spin)
 
     ####################################################################
 
@@ -134,9 +132,8 @@ class DMARRTAgent(object):
         """
         The main loop for the Agent
         """
-        while not rospy.is_shutdown():
-            if rospy.get_param("/run_sim"):
-                self.spin_once()
+        if rospy.get_param("/run_sim"):
+            self.spin_once()
 
     def spin_once(self):
         """

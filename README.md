@@ -47,7 +47,8 @@ source devel/setup.bash
 ```
 
 Once your environment is set up, you should still do the following before pushing/merging anything, to make sure the build isn't broken:
-```catkin clean -y
+```sh
+catkin clean -y
 catkin build
 ```
 

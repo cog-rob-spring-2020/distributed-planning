@@ -87,7 +87,7 @@ class RewardQueueAgent(DMARRTAgent):
                 self.second_goal = self.queue[0][0]
                 self.queue_remove(self.second_goal)
                 removed_goal = self.second_goal
-                
+
             # Send out the winner of the goal bids
             if len(self.goal_bids.keys()) > 0 and removed_goal:
                 max_agent = list(self.goal_bids.keys())[0] #start with random agent
@@ -133,7 +133,7 @@ class RewardQueueAgent(DMARRTAgent):
             if self.queue[i][1] <= reward and reward <= prior_reward:
                 self.queue = self.queue[:i] + [(goal, reward)] + self.queue[i:]
                 return
-            prior_reward = self.queue[i][1] 
+            prior_reward = self.queue[i][1]
         self.queue.append((goal, reward))
 
     def queue_remove(self, goal):
@@ -170,6 +170,7 @@ class RewardQueueAgent(DMARRTAgent):
         Update internal state to reflect other agent's bid
         on the first goal in the queue.
         msg - message of type GoalBid
+        msg.header - contains the sender's ID as frame_id
         """
         if msg.header.frame_id != self.identifier:
             self.goal_bids[msg.header.frame_id] = (msg.bid, (msg.goal_point.x, msg.goal_point.y))

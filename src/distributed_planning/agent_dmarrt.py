@@ -39,7 +39,7 @@ class DMARRTAgent(object):
 
         self.agent_params = rospy.get_param("/" + self.identifier)
         self.spin_rate = self.agent_params["spin_rate"]
-        
+
         # Initialize the RRT planner.
         start_pos = (self.agent_params["start_pos"]["x"], self.agent_params["start_pos"]["y"])
         goal_pos = (self.agent_params["goal_pos"]["x"], self.agent_params["goal_pos"]["y"])
@@ -188,7 +188,7 @@ class DMARRTAgent(object):
             self.plan_token_holder = (
                 False  # Set to false here in case we get the token back.
             )
-            
+
             # These topics are time-synchronized for all agents
             self.publish_winner_id(winner_id, curr_time)
             self.publish_path(self.curr_plan, curr_time, self.waypoint_pub)
@@ -214,11 +214,12 @@ class DMARRTAgent(object):
         Update internal state to reflect other agent's PPI bid.
 
         msg - message of type PlanBid
-        msg.sender_id - unique ID of the agent who sent the message
+        msg.header - contains the sender's ID as frame_id
         msg.bid - agent's PPI (potential path improvement) for current
         planning iteration
         """
-        self.plan_bids[msg.header.frame_id] = msg.bid
+        if msg.header.frame_id != self.identifier:
+            self.plan_bids[msg.header.frame_id] = msg.bid
 
     def winner_waypoint_cb(self, winner_id_msg, waypoint_msg):
         """
@@ -252,7 +253,7 @@ class DMARRTAgent(object):
             bid_msg.bid = bid
 
             self.plan_bid_pub.publish(bid_msg)
-            
+
     def publish_winner_id(self, winner_id, stamp):
         """
         Broadcast the token winner
@@ -273,7 +274,7 @@ class DMARRTAgent(object):
             path_msg = PathRosMsg()
             path_msg.header.stamp = stamp
             path_msg.header.frame_id = self.own_map_frame_id
-            
+
             if plan:
                 path_msg.poses = [PoseStamped() for i in range(len(plan.nodes))]
                 for i in range(len(plan.nodes)):
@@ -445,7 +446,7 @@ class DMARRTAgent(object):
 
             # Find the new best path in the tree
             return self.allocate_time_to_path(self.rrt.get_path(), rospy.Time.now())
-        
+
         return None
 
     def allocate_time_to_path(self, path, start_time):

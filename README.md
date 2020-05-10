@@ -26,7 +26,7 @@ You need the following dependencies:
 sudo apt-get install python-wstool python-catkin-tools ros-kinetic-map-server
 ```
 
-Make sure your [ROS environment is setup](http://wiki.ros.org/ROS/Tutorials/InstallingandConfiguringROSEnvironment)
+Make sure your [ROS environment is set up](http://wiki.ros.org/ROS/Tutorials/InstallingandConfiguringROSEnvironment)
 
 ```sh
 mkdir -p ~/catkin_ws/src
@@ -44,6 +44,11 @@ wstool update
 cd ../
 catkin build
 source devel/setup.bash
+```
+
+Once your environment is set up, you should still do the following before pushing/merging anything, to make sure the build isn't broken:
+```catkin clean -y
+catkin build
 ```
 
 ### Running

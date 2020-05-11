@@ -33,8 +33,10 @@ class RewardQueueAgent(DMARRTAgent):
         self.goal_token_lock = threading.Lock()
         self.queue_lock = threading.Lock()
 
-        self.goal_list = [self.goal, None]
-        self.planner_list = [self.rrt, None]
+        self.goal_list = [self.goal]
+        self.planner_list = [self.rrt]
+        self.goal_index = 0 # which goal is our current primary one
+        self.goal_limit = 2 # number of future goals we can claim
 
         # Adding goals
         rospy.Subscriber("goals/add_goal", Goal, self.added_goal_cb)
@@ -71,24 +73,27 @@ class RewardQueueAgent(DMARRTAgent):
         # TODO(marcus): handled by tf tree!
         self.planner_list[0].update_pos(self.pos, 0, wipe_tree=True)
 
-        path = []
-        for rrt in self.planner_list:
-            if rrt is not None:
-                rrt.spin(False)
-                sub_path = self.allocate_time_to_path(rrt.get_path(), rospy.Time.now()).nodes
+        path = list(self.curr_plan.nodes)
 
-                path += list(sub_path)
+        # spin trees starting with the one for our current goal
+        for rrt in self.planner_list[self.goal_index:]:
+            rrt.spin(False)
+            sub_path = rrt.get_path()
 
-            if rrt is None or not self.close_to_point((path[-1].x, path[-1].y), (rrt.goal.x, rrt.goal.y)):
+            if sub_path is not None:
+                path += list(sub_path.nodes)
+
+            if sub_path is None or not self.close_to_point((path[-1].x, path[-1].y), (rrt.goal.x, rrt.goal.y)):
                 break # don't want non-contiguous paths
 
-        return Path(nodes=path,
-                    start_node=self.pos,
-                    goal_node=path[-1])
+        return self.allocate_time_to_path(Path(nodes=path,
+                                               start_node=self.pos,
+                                               goal_node=path[-1]),
+                                          rospy.Time.now())
 
     def at_goal(self):
         # no goals left to plan for
-        return all(goal is None for goal in self.goal_list)
+        return self.goal_index == len(self.goal_list) - 1 and self.at_primary_goal()
 
     def close_to_point(self, point, other):
         dist = np.sqrt((other[0] - point[0]) ** 2 + (other[1] - point[1]) ** 2)
@@ -97,14 +102,8 @@ class RewardQueueAgent(DMARRTAgent):
 
         return False
 
-    def at_first_goal(self):
-        if self.goal_list[0] is not None:
-            return self.close_to_point(self.goal_list[0], self.pos)
-        return False
-
-    def last_goal_index(self):
-        # returns -1 if no goals, otherwise the index of the last non-None goal
-        return len([goal for goal in self.goal_list if goal is not None]) - 1
+    def at_primary_goal(self):
+        return self.close_to_point(self.goal_list[self.goal_index], self.pos)
 
     def spin_once(self):
         """
@@ -112,35 +111,36 @@ class RewardQueueAgent(DMARRTAgent):
 
         The interaction component is handled using Agent callbacks.
         """
-        num_goals = self.last_goal_index() + 1
+        num_goals = len(self.goal_list) - self.goal_index
 
         # Handle goal modifications
         if self.goal_token_holder:
             removed_goal = None
 
-            if num_goals != len(self.goal_list) and len(self.queue) > 0:
+            if num_goals < self.goal_limit and len(self.queue) > 0:
                 self.queue_lock.acquire()
-                next_goal_index = self.last_goal_index() + 1
                 removed_goal = self.queue[0][0]
 
-                self.goal_list[next_goal_index] = removed_goal
+                self.goal_list.append(removed_goal)
                 self.queue_remove(removed_goal)
                 self.queue_lock.release()
 
                 if num_goals == 0:
-                    self.set_goal(removed_goal) # obey superclass spec
+                    self.goal = removed_goal # primary goal
                     start = self.pos
                 else:
                     # second to last goal after update
-                    start = self.goal_list[next_goal_index - 1]
+                    start = self.goal_list[-2]
 
-                self.planner_list[next_goal_index] = RRTstar(start=start,
-                        goal=removed_goal,
-                        env=self.map_data,
-                        goal_dist=self.goal_dist,
-                        step_size=self.step,
-                        near_radius=self.ccd,
-                        max_iter=self.rrt_iters)
+                self.planner_list.append(
+                    RRTstar(start=start,
+                            goal=removed_goal,
+                            env=self.map_data,
+                            goal_dist=self.goal_dist,
+                            step_size=self.step,
+                            near_radius=self.ccd,
+                            max_iter=self.rrt_iters)
+                )
 
             # Send out the winner of the goal bids
             self.goal_bid_lock.acquire()
@@ -177,9 +177,7 @@ class RewardQueueAgent(DMARRTAgent):
                 self.queue_lock.acquire()
                 queue_first_goal, reward = self.queue[0]
                 self.queue_lock.release()
-                last_goal = self.goal_list[self.last_goal_index()]
-                if last_goal is None:
-                    last_goal = self.pos
+                last_goal = self.goal_list[-1]
 
                 dist = np.abs(np.sqrt((last_goal[0] - queue_first_goal[0])**2 + (last_goal[1] - queue_first_goal[1])**2))
 
@@ -195,13 +193,9 @@ class RewardQueueAgent(DMARRTAgent):
                     self.publish_goal_bid(bid / (num_goals + 1), queue_first_goal)
 
         # update goal progress
-        if self.at_first_goal():
-            for i in range(len(self.goal_list) - 1):
-                self.goal_list[i] = self.goal_list[i + 1]
-                self.planner_list[i] = self.planner_list[i + 1]
-            self.goal_list[-1] = None
-            self.planner_list[-1] = None
-            self.rrt = self.planner_list[0]
+        if self.at_primary_goal() and self.goal_index < len(self.goal_list) - 1:
+            self.goal_index += 1
+            self.rrt = self.planner_list[self.goal_index]
 
         # once goals are up to date, replan or bid on replanning token
         super(RewardQueueAgent, self).spin_once()

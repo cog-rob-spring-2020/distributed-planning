@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import numpy as np
+import threading
 
 import rospy
 import message_filters
@@ -26,6 +27,11 @@ class RewardQueueAgent(DMARRTAgent):
 
         # list of goals organized in an order
         self.queue = [] # ordered by priority, each element is ((x,y), reward)
+
+        # Locks for multithreading
+        self.goal_bid_lock = threading.Lock()
+        self.goal_token_lock = threading.Lock()
+        self.queue_lock = threading.Lock()
 
         self.goal_list = [self.goal, None]
         self.planner_list = [self.rrt, None]
@@ -113,11 +119,13 @@ class RewardQueueAgent(DMARRTAgent):
             removed_goal = None
 
             if num_goals != len(self.goal_list) and len(self.queue) > 0:
+                self.queue_lock.acquire()
                 next_goal_index = self.last_goal_index() + 1
                 removed_goal = self.queue[0][0]
 
                 self.goal_list[next_goal_index] = removed_goal
                 self.queue_remove(removed_goal)
+                self.queue_lock.release()
 
                 if num_goals == 0:
                     self.set_goal(removed_goal) # obey superclass spec
@@ -135,6 +143,7 @@ class RewardQueueAgent(DMARRTAgent):
                         max_iter=self.rrt_iters)
 
             # Send out the winner of the goal bids
+            self.goal_bid_lock.acquire()
             if len(self.goal_bids.keys()) > 0:
                 winner_id = list(self.goal_bids.keys())[0]
                 winner_bid, winner_goal = self.goal_bids[winner_id]
@@ -150,19 +159,24 @@ class RewardQueueAgent(DMARRTAgent):
                         winner_id = agent_id
                         winner_bid, winner_goal = agent_bid, agent_goal
 
+                self.goal_token_lock.acquire()
                 self.goal_token_holder = False
+                self.goal_token_lock.release()
 
                 stamp = rospy.Time.now()
                 if removed_goal is None:
                     self.publish_goal_winner(winner_id, (0, 0), stamp, is_claimed = False)
                 else:
                     self.publish_goal_winner(winner_id, removed_goal, stamp, is_claimed = True)
+            self.goal_bid_lock.release()
 
         # Publish a goal bid
         else:
             if len(self.queue) > 0:
                 # bid = reward - distance from last goal we will visit to the target goal
+                self.queue_lock.acquire()
                 queue_first_goal, reward = self.queue[0]
+                self.queue_lock.release()
                 last_goal = self.goal_list[self.last_goal_index()]
                 if last_goal is None:
                     last_goal = self.pos
@@ -187,6 +201,7 @@ class RewardQueueAgent(DMARRTAgent):
                 self.planner_list[i] = self.planner_list[i + 1]
             self.goal_list[-1] = None
             self.planner_list[-1] = None
+            self.rrt = self.planner_list[0]
 
         # once goals are up to date, replan or bid on replanning token
         super(RewardQueueAgent, self).spin_once()
@@ -231,11 +246,15 @@ class RewardQueueAgent(DMARRTAgent):
         Remove the goal that the previous winner claimed from queue.
         """
         if winner_id_msg.winner_id == self.identifier:
+            self.goal_token_lock.acquire()
             self.goal_token_holder = True
+            self.goal_token_lock.release()
 
         if goal_point_msg.is_claimed:
             goal = (goal_point_msg.goal_point.x, goal_point_msg.goal_point.y)
+            self.queue_lock.acquire()
             self.queue_remove(goal)
+            self.queue_lock.release()
 
     def goal_bid_cb(self, msg):
         """
@@ -245,7 +264,9 @@ class RewardQueueAgent(DMARRTAgent):
         msg.header - contains the sender's ID as frame_id
         """
         if msg.header.frame_id != self.identifier:
+            self.goal_bid_lock.acquire()
             self.goal_bids[msg.header.frame_id] = (msg.bid, (msg.goal_point.x, msg.goal_point.y))
+            self.goal_bid_lock.release()
 
     def added_goal_cb(self, msg):
         """
@@ -257,7 +278,9 @@ class RewardQueueAgent(DMARRTAgent):
         agent did not send the message in our implementation).
         msg - message of type Goal
         """
+        self.queue_lock.acquire()
         self.queue_insert((msg.goal_point.x, msg.goal_point.y), msg.reward)
+        self.queue_lock.release()
 
     def removed_goal_cb(self, msg):
         """
@@ -269,7 +292,9 @@ class RewardQueueAgent(DMARRTAgent):
         agent did not send the message in our implementation).
         msg - message of type Goal
         """
+        self.queue_lock.acquire()
         self.queue_remove((msg.goal_point.x, msg.goal_point.y))
+        self.queue_lock.release()
 
     ####################################################################
 

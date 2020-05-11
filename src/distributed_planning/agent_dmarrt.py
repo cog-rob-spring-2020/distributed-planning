@@ -2,6 +2,7 @@
 import random
 import numpy as np
 import yaml
+import threading
 
 import rospy
 import message_filters
@@ -79,6 +80,11 @@ class DMARRTAgent(object):
         self.peer_waypoints = {}
         self.plan_token_holder = rospy.get_param("~has_token", False)
 
+        # Multithreading locks
+        self.plan_bid_lock = threading.Lock()
+        self.peer_waypoints_lock = threading.Lock()
+        self.plan_token_lock = threading.Lock()
+
         # be ready for replanning bids
         rospy.Subscriber("plan/bids", PlanBid, self.plan_bid_cb)
         self.plan_bid_pub = rospy.Publisher("plan/bids", PlanBid, queue_size=10)
@@ -116,7 +122,6 @@ class DMARRTAgent(object):
         self.endpoint_marker_pub = rospy.Publisher(
             self.identifier + "/viz/rrt/endpoints", Marker, queue_size=10
         )
-
 
         self.tree_marker = self.setup_tree_marker()
         self.endpoint_marker = self.setup_endpoint_marker()
@@ -162,7 +167,7 @@ class DMARRTAgent(object):
                 if not self.curr_plan:
                     self.curr_plan = new_plan
 
-        if self.plan_token_holder and new_plan:
+        if self.plan_token_holder and (new_plan or self.at_goal()):
             # Replan to new best path
             self.curr_plan = self.best_plan
 
@@ -172,6 +177,7 @@ class DMARRTAgent(object):
             # )
 
             # Broadcast the new winner of the bidding round
+            self.plan_bid_lock.acquire()
             winner_id = self.identifier
             if len(self.plan_bids) > 0:
                 # select a winner based on bids
@@ -180,11 +186,12 @@ class DMARRTAgent(object):
                     id for id, bid in self.plan_bids.items() if bid == winner_bid
                 ]
                 winner_id = random.choice(winner_ids)  # break bid ties with randomness
+            self.plan_bid_lock.release()
 
             # broadcast new tokenholder
-            self.plan_token_holder = (
-                False  # Set to false here in case we get the token back.
-            )
+            self.plan_token_lock.acquire()
+            self.plan_token_holder = False
+            self.plan_token_lock.release()
 
             # These topics are time-synchronized for all agents
             self.publish_winner_id(winner_id, curr_time)
@@ -196,7 +203,8 @@ class DMARRTAgent(object):
         else:
             if self.curr_plan and self.best_plan:
                 # broadcast plan bid
-                self.publish_plan_bid(self.curr_plan.cost - self.best_plan.cost, curr_time)
+                self.publish_plan_bid(np.abs(self.curr_plan.cost - self.best_plan.cost), curr_time)
+                # self.publish_plan_bid(self.curr_plan.cost - self.best_plan.cost, curr_time)
 
         self.visualize(curr_time)
 
@@ -219,7 +227,9 @@ class DMARRTAgent(object):
         planning iteration
         """
         if msg.header.frame_id != self.identifier:
+            self.plan_bid_lock.acquire()
             self.plan_bids[msg.header.frame_id] = msg.bid
+            self.plan_bid_lock.release()
 
     def winner_waypoint_cb(self, winner_id_msg, waypoint_msg):
         """
@@ -232,13 +242,17 @@ class DMARRTAgent(object):
         Update our token holder status
         """
         if msg.winner_id == self.identifier:
+            self.plan_token_lock.acquire()
             self.plan_token_holder = True
+            self.plan_token_lock.release()
 
     def waypoint_cb(self, msg):
         """
         Update waypoints as they're broadcasted
         """
+        self.peer_waypoints_lock.acquire()
         self.peer_waypoints[msg.header.frame_id] = msg.poses
+        self.peer_waypoints_lock.release()
 
     ####################################################################
 
@@ -332,7 +346,6 @@ class DMARRTAgent(object):
                 self.endpoint_marker_pub.publish(self.endpoint_marker)
             except rospy.ROSException:
                 pass
-
 
     def publish_new_tf(self, timestamp):
         """ Publish the ground-truth transform to the TF tree.

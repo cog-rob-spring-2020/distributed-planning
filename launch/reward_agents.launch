@@ -20,9 +20,9 @@
     <param name="name_prefix" value="agent_2"/>
   </node>
 
-  <node pkg="distributed_planning" type="agent_rewardqueue.py" name="agent_3" output="screen">
+  <!-- <node pkg="distributed_planning" type="agent_rewardqueue.py" name="agent_3" output="screen">
     <param name="name_prefix" value="agent_3"/>
-  </node>
+  </node> -->
 
   <!-- <node pkg="distributed_planning" type="agent_rewardqueue.py" name="agent_4" output="screen">
     <param name="name_prefix" value="agent_4"/>

@@ -23,7 +23,8 @@ class GoalUpdaterContinuation(object):
         self.queue_pub = rospy.Publisher("queue", Queue, queue_size=10)
 
         # start publishing goals
-        self.maintain_queue()
+        # self.maintain_queue()
+        self.populate_once()
 
     def queue_cb(self, msg):
         """
@@ -34,10 +35,14 @@ class GoalUpdaterContinuation(object):
         """
         self.queue = msg.goal_points
 
-    def publish_add_goal(self, goal):
+    def create_point(self, goal):
         goal_point = Point()
         goal_point.x = goal[0]
         goal_point.y = goal[1]
+        return goal_point
+
+    def publish_add_goal(self, goal):
+        goal_point = self.create_point(goal)
 
         if not rospy.is_shutdown():
             self.queue.append(goal_point)
@@ -90,6 +95,30 @@ class GoalUpdaterContinuation(object):
             #     goal = random.choice(self.queue)
             #     self.publish_remove_goal(goal)
 
+
+    def populate_once(self):
+        # Initialize the queue with lots of randomly generated goals
+        #
+        # Options:
+        #   Init with number of agents
+        #   Remove goals / only add goals
+        #   Constant reward / variable reward
+
+        run_times = 0
+
+        # periodically add goals
+        while not rospy.is_shutdown() and run_times < 25:
+            sleep(1.0)
+            x = random.uniform(self.map_bounds[0][0], self.map_bounds[0][1])
+            y = random.uniform(self.map_bounds[1][0], self.map_bounds[1][1])
+            self.publish_add_goal((x, y))
+            run_times += 1
+            # goal_point = self.create_point((x, y))
+            # self.queue.append(goal_point)
+            # has_run = True
+
+            # msg = Queue(goal_points=self.queue)
+            # self.queue_pub.publish(msg)
 
 if __name__ == "__main__":
     rospy.init_node("goal_updater", anonymous=True)

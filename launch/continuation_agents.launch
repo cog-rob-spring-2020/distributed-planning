@@ -8,6 +8,9 @@
   <!-- Random Goal Updater -->
   <node pkg="distributed_planning" type="goal_updater_continuation.py" name="goal_updater" output="screen"/>
 
+  <!-- Analysis -->
+  <node pkg="distributed_planning" type="analysis_continuation.py" name="analysis" output="screen"/>
+
   <!-- Agent Nodes -->
   <!-- NOTE: Always set one of these agents to have the token in this file. -->
   <node pkg="distributed_planning" type="agent_continuation.py" name="agent_1" output="screen">

@@ -59,13 +59,6 @@ class RewardQueueAgent(DMARRTAgent):
 
         self.spin_timer = rospy.Timer(rospy.Duration(1.0 / self.spin_rate), self.spin)
 
-    def close_to_point(self, point, other):
-        dist = np.sqrt((other[0] - point[0]) ** 2 + (other[1] - point[1]) ** 2)
-        if dist <= 0.3:
-            return True
-
-        return False
-
     def spin_once(self):
         """
         Runs the agent's individual DMA-RRT component once.

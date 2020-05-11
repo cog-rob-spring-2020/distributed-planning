@@ -4,7 +4,7 @@
 
 ## Assignment
 
-The student-facing Jupyter notebook and its solutions live in `./assignment.` See `./assignment/README.md` for more information.
+The student-facing Jupyter notebook for the Advanced Lecture/mini pset assignment, as well as its solutions, live in `./assignment.` See `./assignment/README.md` for more information.
 
 ## Grand Challenge
 
@@ -50,14 +50,18 @@ Once your environment is set up, you should still do the following before pushin
 ```sh
 catkin clean -y
 catkin build
+source devel/setup.bash
 ```
 
 ### Running
 
-We recommend using `roslaunch`. For example:
+We recommend using `roslaunch`. We have a launch file in the launch folder for each successful variation of agent, listed below. The altruistic agents were never fully debugged, so we do not recommend running that launch file.
 
 ```sh
-roslaunch distributed_planning dma-rrt.launch
+roslaunch distributed_planning basic_agents.launch
+roslaunch distributed_planning continuation_agents.launch
+roslaunch distributed_planning euclidean_agents.launch
+roslaunch distributed_planning reward_agents.launch
 ```
 
 To visualize, we currently use RVIZ:

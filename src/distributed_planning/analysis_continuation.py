@@ -6,16 +6,14 @@ class AnalysisContinuation(object):
     def __init__(self):
         rospy.Subscriber("queue", Queue, self.queue_cb)
         rospy.Subscriber("plan/winner_id", WinnerID, self.winner_cb)
-
         self.stats_pub = rospy.Publisher("stats", Stats, queue_size=10)
 
         self.planning_rounds = 0
-
         self.queue = []
 
         # iters by goal
         self.goals = {}
-        # completed by goal
+        # rounds to complete by goal
         self.completed = {}
 
     def queue_cb(self, msg):
@@ -40,10 +38,7 @@ class AnalysisContinuation(object):
         for location in self.queue:
             self.goals[location] += 1
 
-        if len(self.goals) == 0:
-            return
-
-        avg_age = sum(self.goals.values()) / len(self.goals)
+        avg_age = sum(self.goals.values()) / len(self.goals) if len(self.goals) > 0 else 0.0
 
         avg_age_completed = sum(self.completed.values()) / len(self.completed) if len(self.completed) > 0 else 0.0
 

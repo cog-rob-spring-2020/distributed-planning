@@ -2,6 +2,7 @@
 import random
 import numpy as np
 import yaml
+import threading
 
 import rospy
 import message_filters
@@ -30,108 +31,8 @@ class ContinuationAgent(DMARRTAgent):
     """
 
     def __init__(self, *args, **kwargs):
-        # Get All ROS params
-        self.identifier = rospy.get_name()[1:]
-        self.body_frame = self.identifier + "_body"
-
-        # Get map data from server
-        self.map_topic = rospy.get_param("/map_topic")
-        self.map_data = rospy.wait_for_message(self.map_topic, OccupancyGrid)
-
-        self.agent_params = rospy.get_param("/" + self.identifier)
-        self.spin_rate = self.agent_params["spin_rate"]
-
-        # Initialize the RRT planner.
-        self.start = (
-            self.agent_params["start_pos"]["x"],
-            self.agent_params["start_pos"]["y"],
-        )
-        self.goal = (
-            self.agent_params["goal_pos"]["x"],
-            self.agent_params["goal_pos"]["y"],
-        )
-        self.goal_dist = self.agent_params["goal_dist"]
-        self.rrt_iters = self.agent_params["rrt_iters"]
-        self.step = self.agent_params["step_size"]
-        self.ccd = self.agent_params["near_radius"]
-
-        # Setup our RRT implementation
-        self.rrt = RRTstar(
-            start=self.start,
-            goal=self.goal,
-            env=self.map_data,
-            goal_dist=self.goal_dist,
-            step_size=self.step,
-            near_radius=self.ccd,
-            max_iter=self.rrt_iters,
-        )
-
-        # Initial state
-        self.pos = self.start
-        self.curr_plan_id = 0  # ID of the node in the current plan we are at
-        self.latest_movement_timestamp = rospy.Time.now()
-        self.movement_dt = self.agent_params["movement_dt"]
-
-        # Send and track robot positions
-        self.tf_broadcaster = tf2_ros.TransformBroadcaster()
-        # self.tf_listener = tf.TransformListener()
-
-        # curr_plan is the currently executing plan; best_plan is a
-        #    lower-cost path than curr_plan, if one exists.
-        self.curr_plan = None
-        self.best_plan = None
-
-        # manage DMA-RRT bid and waypoint info
-        self.plan_bids = {}
-        self.peer_waypoints = {}
-        self.plan_token_holder = rospy.get_param("~has_token", False)
-
-        # be ready for replanning bids
-        rospy.Subscriber("plan/bids", PlanBid, self.plan_bid_cb)
-        self.plan_bid_pub = rospy.Publisher("plan/bids", PlanBid, queue_size=10)
-
-        # publishers for replanning
-        self.winner_id_pub = rospy.Publisher("plan/winner_id", WinnerID, queue_size=10)
-        self.waypoint_pub = rospy.Publisher("plan/waypoints", PathRosMsg, queue_size=10)
-
-        # Time-synchronized replan subscribers
-        self.planning_ts = message_filters.TimeSynchronizer(
-            [
-                message_filters.Subscriber("plan/winner_id", WinnerID),
-                message_filters.Subscriber("plan/waypoints", PathRosMsg),
-            ],
-            10,
-        )
-        self.planning_ts.registerCallback(self.winner_waypoint_cb)
-
-        # publish static tf for private map frame
-        self.own_map_frame_id = "/" + self.identifier + "_map"
-        self.static_tf_broadcaster = tf2_ros.StaticTransformBroadcaster()
-        own_map_tf = TransformStamped()
-        own_map_tf.header.stamp = rospy.Time.now()
-        own_map_tf.header.frame_id = self.map_topic
-        own_map_tf.child_frame_id = self.own_map_frame_id
-        own_map_tf.transform.rotation.w = 1.0
-        self.static_tf_broadcaster.sendTransform([own_map_tf])
-
-        # Visualization publishers
-        self.curr_path_viz_pub = rospy.Publisher(
-            self.identifier + "/viz/curr_path", PathRosMsg, queue_size=10
-        )
-        self.best_path_viz_pub = rospy.Publisher(
-            self.identifier + "/viz/best_path", PathRosMsg, queue_size=10
-        )
-        self.rrt_tree_pub = rospy.Publisher(
-            self.identifier + "/viz/rrt/tree", Marker, queue_size=10
-        )
-        self.endpoint_marker_pub = rospy.Publisher(
-            self.identifier + "/viz/rrt/endpoints", Marker, queue_size=10
-        )
-
-        self.tree_marker = self.setup_tree_marker()
-        self.endpoint_marker = self.setup_endpoint_marker()
-
-        rospy.loginfo(self.identifier + " has initialized.")
+        super(ContinuationAgent, self).__init__(*args, **kwargs)
+        self.spin_timer.shutdown()
 
         self.goal_count = 0
 
@@ -184,6 +85,7 @@ class ContinuationAgent(DMARRTAgent):
                 self.curr_plan = self.best_plan
 
             # hand the token over to a new agent
+            self.plan_bid_lock.acquire()
             winner_id = self.identifier
             if len(self.plan_bids) > 0:
                 # select a winner based on bids
@@ -193,6 +95,7 @@ class ContinuationAgent(DMARRTAgent):
                 ]
 
                 winner_id = random.choice(winner_ids)  # break bid ties with randomness
+                self.plan_bid_lock.release()
 
             if self.at_goal():
                 if len(self.queue) > 0:
@@ -200,7 +103,9 @@ class ContinuationAgent(DMARRTAgent):
                     goal = self.take_goal()
                     self.reassign_goal(goal)
 
+            self.plan_token_lock.acquire()
             self.plan_token_holder = False
+            self.plan_token_lock.release()
             self.publish_winner_id(winner_id, curr_time)
             self.publish_path(self.curr_plan, curr_time, self.waypoint_pub)
 
@@ -212,7 +117,7 @@ class ContinuationAgent(DMARRTAgent):
                 # compute a bid based on a comparison of the current and best plans
                 if self.curr_plan and self.best_plan:
                     # broadcast plan bid
-                    bid = self.curr_plan.cost - self.best_plan.cost
+                    bid = np.abs(self.curr_plan.cost - self.best_plan.cost)
                     self.publish_plan_bid(bid, curr_time)
 
         self.visualize(curr_time)

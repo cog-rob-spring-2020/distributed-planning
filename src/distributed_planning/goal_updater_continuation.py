@@ -113,12 +113,7 @@ class GoalUpdaterContinuation(object):
             y = random.uniform(self.map_bounds[1][0], self.map_bounds[1][1])
             self.publish_add_goal((x, y))
             run_times += 1
-            # goal_point = self.create_point((x, y))
-            # self.queue.append(goal_point)
-            # has_run = True
 
-            # msg = Queue(goal_points=self.queue)
-            # self.queue_pub.publish(msg)
 
 if __name__ == "__main__":
     rospy.init_node("goal_updater", anonymous=True)

@@ -1,5 +1,5 @@
 <launch>
-  <arg name="map" default="empty"/>
+  <arg name="map" default="simple"/>
 
   <param name="/run_sim"   value="true"/>
   <param name="/map_topic" value="/map"/>
@@ -7,6 +7,9 @@
 
   <!-- Random Goal Updater -->
   <node pkg="distributed_planning" type="goal_updater_continuation.py" name="goal_updater" output="screen"/>
+
+  <!-- Analysis -->
+  <node pkg="distributed_planning" type="analysis_continuation.py" name="analysis" output="screen"/>
 
   <!-- Agent Nodes -->
   <!-- NOTE: Always set one of these agents to have the token in this file. -->

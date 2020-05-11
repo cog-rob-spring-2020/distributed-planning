@@ -1,5 +1,5 @@
 <launch>
-  <arg name="map" default="empty"/>
+  <arg name="map" default="simple"/>
 
   <param name="/run_sim"   value="true"/>
   <param name="/map_topic" value="/map"/>

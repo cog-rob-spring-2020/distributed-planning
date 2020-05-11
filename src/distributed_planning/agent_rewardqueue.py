@@ -63,7 +63,7 @@ class RewardQueueAgent(DMARRTAgent):
         """
         # Refresh environment to reflect agent's current positions
         # TODO(marcus): handled by tf tree!
-        self.rrt.update_pos(self.pos, 0, wipe_tree=True)
+        self.planner_list[0].update_pos(self.pos, 0, wipe_tree=True)
 
         path = []
         for rrt in self.planner_list:

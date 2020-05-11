@@ -34,7 +34,6 @@ class RewardQueueAgent(DMARRTAgent):
         self.queue_lock = threading.Lock()
 
         self.goal_list = [self.goal]
-        self.planner_list = [self.rrt]
         self.goal_index = 0 # which goal is our current primary one
         self.goal_limit = 2 # number of future goals we can claim
 
@@ -59,40 +58,6 @@ class RewardQueueAgent(DMARRTAgent):
         self.goal_bid_pub = rospy.Publisher("goals/goal_bids", GoalBid, queue_size=10)
 
         self.spin_timer = rospy.Timer(rospy.Duration(1.0 / self.spin_rate), self.spin)
-
-    def create_new_plan(self):
-        """
-        Spin RRT to create a new plan.
-
-        Use plans from multiple planners to concatenate path between goals.
-
-        Returns:
-            Path
-        """
-        # Refresh environment to reflect agent's current positions
-        # TODO(marcus): handled by tf tree!
-        self.planner_list[0].update_pos(self.pos, 0, wipe_tree=True)
-
-        if self.curr_plan is not None:
-            path = list(self.curr_plan.nodes)
-        else:
-            path = []
-
-        # spin trees starting with the one for our current goal
-        for rrt in self.planner_list[self.goal_index:]:
-            rrt.spin(False)
-            sub_path = rrt.get_path()
-
-            if sub_path is not None:
-                path += list(sub_path.nodes)
-
-            if sub_path is None or not self.close_to_point((path[-1].x, path[-1].y), (rrt.goal.x, rrt.goal.y)):
-                break # don't want non-contiguous paths
-
-        return self.allocate_time_to_path(Path(nodes=path,
-                                               start_node=self.pos,
-                                               goal_node=path[-1]),
-                                          rospy.Time.now())
 
     def at_goal(self):
         # no goals left to plan for
@@ -129,21 +94,9 @@ class RewardQueueAgent(DMARRTAgent):
                 self.queue_lock.release()
 
                 if num_goals == 0:
-                    self.goal = removed_goal # primary goal
-                    start = self.pos
-                else:
-                    # second to last goal after update
-                    start = self.goal_list[-2]
-
-                self.planner_list.append(
-                    RRTstar(start=start,
-                            goal=removed_goal,
-                            env=self.map_data,
-                            goal_dist=self.goal_dist,
-                            step_size=self.step,
-                            near_radius=self.ccd,
-                            max_iter=self.rrt_iters)
-                )
+                    # taking on a new primary goal
+                    self.goal = removed_goal
+                    self.rrt.goal = removed_goal
 
             # Send out the winner of the goal bids
             self.goal_bid_lock.acquire()
@@ -198,7 +151,7 @@ class RewardQueueAgent(DMARRTAgent):
         # update goal progress
         if self.at_primary_goal() and self.goal_index < len(self.goal_list) - 1:
             self.goal_index += 1
-            self.rrt = self.planner_list[self.goal_index]
+            self.rrt.goal = self.goal_list[self.goal_index]
 
         # once goals are up to date, replan or bid on replanning token
         super(RewardQueueAgent, self).spin_once()

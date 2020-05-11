@@ -73,7 +73,10 @@ class RewardQueueAgent(DMARRTAgent):
         # TODO(marcus): handled by tf tree!
         self.planner_list[0].update_pos(self.pos, 0, wipe_tree=True)
 
-        path = list(self.curr_plan.nodes)
+        if self.curr_plan is not None:
+            path = list(self.curr_plan.nodes)
+        else:
+            path = []
 
         # spin trees starting with the one for our current goal
         for rrt in self.planner_list[self.goal_index:]:

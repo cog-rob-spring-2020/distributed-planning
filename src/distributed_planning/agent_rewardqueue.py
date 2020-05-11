@@ -59,19 +59,12 @@ class RewardQueueAgent(DMARRTAgent):
 
         self.spin_timer = rospy.Timer(rospy.Duration(1.0 / self.spin_rate), self.spin)
 
-    def at_goal(self):
-        # no goals left to plan for
-        return self.goal_index == len(self.goal_list) - 1 and self.at_primary_goal()
-
     def close_to_point(self, point, other):
         dist = np.sqrt((other[0] - point[0]) ** 2 + (other[1] - point[1]) ** 2)
         if dist <= 0.3:
             return True
 
         return False
-
-    def at_primary_goal(self):
-        return self.close_to_point(self.goal_list[self.goal_index], self.pos)
 
     def spin_once(self):
         """
@@ -148,7 +141,7 @@ class RewardQueueAgent(DMARRTAgent):
                     self.publish_goal_bid(bid / (num_goals + 1), queue_first_goal)
 
         # update goal progress
-        if self.at_primary_goal() and self.goal_index < len(self.goal_list) - 1:
+        if self.at_goal() and self.goal_index < len(self.goal_list) - 1:
             self.goal_index += 1
             self.set_goal(self.goal_list[self.goal_index])
 
@@ -156,6 +149,26 @@ class RewardQueueAgent(DMARRTAgent):
         super(RewardQueueAgent, self).spin_once()
 
     ####################################################################
+
+    def set_goal(self, goal):
+        """
+        """
+        self.goal = goal
+        self.start = self.pos
+        print(self.identifier + " pos:", self.pos)
+        if goal:
+            self.rrt = RRTstar(
+                start=self.pos,
+                goal=goal,
+                env=self.map_data,
+                goal_dist=self.goal_dist,
+                step_size=self.step,
+                near_radius=self.ccd,
+                max_iter=self.rrt_iters,
+            )
+            self.curr_plan_id = 0
+        else:
+            self.rrt.goal = None
 
     def queue_insert(self, goal, reward):
         """

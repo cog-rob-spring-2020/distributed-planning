@@ -276,7 +276,11 @@ class AltruisticAgent(DMARRTAgent):
         Params:
             msg distributed_planning.msg.AltruisticQueue
         """
-        self.queue = msg.goals
+
+        # [{location, agent_id}]
+        self.queue = [{'agent_id': g.agent_id, 'location': (g.location.x, g.location.y) } for g in msg.goals]
+        # TODO: make sure we always use tuples!!!
+
         my_goal = [g for g in self.queue if g.agent_id == self.identifier]
 
         if len(my_goal) > 0:
@@ -285,6 +289,7 @@ class AltruisticAgent(DMARRTAgent):
     def costs_cb(self, msg):
         """
         Update peer costs to other goals
+        self.peer_costs[peer][Point] = cost
 
         Params:
             msg distributed_planning.msg.Costs
@@ -307,6 +312,8 @@ class AltruisticAgent(DMARRTAgent):
         ]
         self.costs_pub.publish(msg)
 
+        # analysis: write a node that can read the queue, look at number of planning iterations a goal is in the queue, number of planning iterations, etc
+
     def select_other_goals(self):
         """
         Select other goals to plan against (creates the iterator of first for-loop in the individual component of the altruistic algorithm)
@@ -314,7 +321,7 @@ class AltruisticAgent(DMARRTAgent):
         eucl = lambda g: np.linalg.norm(
             np.array((g.location.x, g.location.y)) - np.array(self.pos)
         )
-        return filter(lambda g: g.location != self.goal, sorted(self.queue, key=eucl))[
+        return filter(lambda g: (g.location.x, g.location.y) != self.goal, sorted(self.queue, key=eucl))[
             : self.G
         ]
 
@@ -369,13 +376,13 @@ class AltruisticAgent(DMARRTAgent):
             new_goal
         """
         found_goal = None
-        peer = new_goal["agent_id"]
-        l = self.peer_costs[peer][new_goal["location"]]
+        peer = new_goal.agent_id
+        l = self.peer_costs[peer][new_goal.location]
         # ascending list of peer costs for all unclaimed goals and our goal
         possible_goals = sorted(
             filter(
-                lambda g: self.queue[g]["agent_id"] == ""
-                or self.queue[g]["agent_id"] == self.identifier,
+                lambda g: self.queue[g].agent_id == ""
+                or self.queue[g].agent_id == self.identifier,
                 self.peer_costs[peer],
             ),
         )
@@ -432,7 +439,7 @@ class AltruisticAgent(DMARRTAgent):
                 break
 
     def goal_by_location(self, location):
-        print(location, [g for g in self.queue])
+        # print(location, [g for g in self.queue])
         maybe_goal = [g for g in self.queue if (g.location.x, g.location.y) == location]
         if len(maybe_goal) > 0:
             return maybe_goal[0]
@@ -522,7 +529,7 @@ class AltruisticAgent(DMARRTAgent):
                 else:
                     # print(self.identifier, "found someone else's goal")
                     # someone else has this goal
-                    found_peer_goal = self.reroute_check(a.goal, a.plan.cost)
+                    found_peer_goal = self.reroute_check(goal, a.plan.cost)
                     if not found_peer_goal:
                         break
 

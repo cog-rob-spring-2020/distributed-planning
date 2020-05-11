@@ -95,8 +95,7 @@ class RewardQueueAgent(DMARRTAgent):
 
                 if num_goals == 0:
                     # taking on a new primary goal
-                    self.goal = removed_goal
-                    self.rrt.goal = removed_goal
+                    self.set_goal(removed_goal)
 
             # Send out the winner of the goal bids
             self.goal_bid_lock.acquire()
@@ -151,7 +150,7 @@ class RewardQueueAgent(DMARRTAgent):
         # update goal progress
         if self.at_primary_goal() and self.goal_index < len(self.goal_list) - 1:
             self.goal_index += 1
-            self.rrt.goal = self.goal_list[self.goal_index]
+            self.set_goal(self.goal_list[self.goal_index])
 
         # once goals are up to date, replan or bid on replanning token
         super(RewardQueueAgent, self).spin_once()

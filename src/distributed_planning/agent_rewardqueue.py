@@ -148,7 +148,6 @@ class RewardQueueAgent(DMARRTAgent):
         """
         self.goal = goal
         self.start = self.pos
-        print(self.identifier + " pos:", self.pos)
         if goal:
             self.rrt = RRTstar(
                 start=self.pos,

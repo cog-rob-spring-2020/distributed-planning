@@ -5,13 +5,13 @@ from time import sleep
 from std_msgs.msg import Header
 from geometry_msgs.msg import Point
 from nav_msgs.msg import OccupancyGrid
-from distributed_planning.msg import Goal, Queue
+from distributed_planning.msg import AltruisticGoal, AltruisticQueue
 
 
-class GoalUpdaterContinuation(object):
+class GoalUpdaterAltruistic(object):
     def __init__(self):
         # init variables
-        self.queue = []
+        self.queue = []  # elts are (x,y)
 
         # get map data from server
         self.map_topic = rospy.get_param("/map_topic")
@@ -19,12 +19,11 @@ class GoalUpdaterContinuation(object):
         self.map_bounds = None
         self.setup_map(map_data)
 
-        rospy.Subscriber("queue", Queue, self.queue_cb)
-        self.queue_pub = rospy.Publisher("queue", Queue, queue_size=10)
+        rospy.Subscriber("queue", AltruisticQueue, self.queue_cb)
+        self.queue_pub = rospy.Publisher("queue", AltruisticQueue, queue_size=10)
 
         # start publishing goals
-        # self.maintain_queue()
-        self.populate_once()
+        self.maintain_queue()
 
     def queue_cb(self, msg):
         """
@@ -33,31 +32,28 @@ class GoalUpdaterContinuation(object):
         Params:
             msg distributed_planning.msg.Queue
         """
-        self.queue = msg.goal_points
-
-    def create_point(self, goal):
-        goal_point = Point()
-        goal_point.x = goal[0]
-        goal_point.y = goal[1]
-        return goal_point
+        self.queue = msg.goals
 
     def publish_add_goal(self, goal):
-        goal_point = self.create_point(goal)
+        point = Point()
+        point.x = goal[0]
+        point.y = goal[1]
+
+        goal = AltruisticGoal(location=point, agent_id="")
 
         if not rospy.is_shutdown():
-            self.queue.append(goal_point)
-            msg = Queue(goal_points=self.queue)
+            self.queue.append(goal)
+            msg = AltruisticQueue(goals=self.queue)
             self.queue_pub.publish(msg)
 
     # def publish_remove_goal(self, goal):
-    #     g = Point()
-    #     g.x = goal[0]
-    #     g.y = goal[1]
+    #     msg = Point()
+    #     msg.x = goal[0]
+    #     msg.y = goal[1]
 
-    #     if g in self.queue.goal_points and not rospy.is_shutdown():
+    #     if goal in self.queue and not rospy.is_shutdown():
+    #         self.remove_goal_pub.publish(msg)
     #         self.queue.remove(goal)
-    #         msg = Queue(goal_points=self.queue)
-    #         self.queue_pub.publish(msg)
 
     ####################################################################
 
@@ -96,27 +92,8 @@ class GoalUpdaterContinuation(object):
             #     self.publish_remove_goal(goal)
 
 
-    def populate_once(self):
-        # Initialize the queue with lots of randomly generated goals
-        #
-        # Options:
-        #   Init with number of agents
-        #   Remove goals / only add goals
-        #   Constant reward / variable reward
-
-        run_times = 0
-
-        # periodically add goals
-        while not rospy.is_shutdown() and run_times < 25:
-            sleep(1.0)
-            x = random.uniform(self.map_bounds[0][0], self.map_bounds[0][1])
-            y = random.uniform(self.map_bounds[1][0], self.map_bounds[1][1])
-            self.publish_add_goal((x, y))
-            run_times += 1
-
-
 if __name__ == "__main__":
     rospy.init_node("goal_updater", anonymous=True)
-    node = GoalUpdaterContinuation()
+    node = GoalUpdaterAltruistic()
 
     rospy.spin()
